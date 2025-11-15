@@ -1,4 +1,4 @@
-# pylint: disable=line-too-long, missing-function-docstring, trailing-whitespace
+# pylint: disable=line-too-long, missing-function-docstring, trailing-whitespace, pointless-string-statement
 
 import html
 import os
@@ -301,7 +301,25 @@ def login():
             # SQL Injection vulnerability (intentionally vulnerable)
             query = f"SELECT * FROM users WHERE username='{username}' AND password='{password}'"
             print(f"Debug - Login query: {query}")  # Debug print
-            
+
+            # !FIX FOR SQL INJECTION
+            """
+            use a sql string with arguments instead of string formatting
+                        
+            ```
+            query = f"SELECT * FROM users WHERE username=%s AND password=%s
+            ```
+
+            then pass username and password to execute query as params and let psycopg2 handle
+            the parameter security
+
+            ```
+            user = execute_query(query, params=(username, password))
+            ```
+            """
+
+            # TODO no password check function because the password is stored in plain text
+
             user = execute_query(query)
             print(f"Debug - Query result: {user}")  # Debug print
             
