@@ -1,0 +1,1 @@
+SECURE_MODE = False
