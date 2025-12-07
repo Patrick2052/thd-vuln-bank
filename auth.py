@@ -1,8 +1,9 @@
-from flask import jsonify, request
-import jwt
 import datetime
-import sqlite3  
+import sqlite3
 from functools import wraps
+
+import jwt
+from flask import jsonify, request
 
 # Vulnerable JWT implementation with common security issues
 
@@ -58,7 +59,7 @@ def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         token = None
-        
+
         # Try to get token from Authorization header
         if 'Authorization' in request.headers:
             auth_header = request.headers['Authorization']
@@ -70,20 +71,20 @@ def token_required(f):
                     token = auth_header
             except IndexError:
                 token = None
-                
+
         # Vulnerability: Multiple token locations (token hijacking risk)
         # Also check query parameters (vulnerable by design)
         if not token and 'token' in request.args:
             token = request.args['token']
-            
+
         # Also check form data (vulnerable by design)
         if not token and 'token' in request.form:
             token = request.form['token']
-            
+
         # Also check cookies (vulnerable by design)
         if not token and 'token' in request.cookies:
             token = request.cookies['token']
-            
+
         if not token:
             return jsonify({'error': 'Token is missing'}), 401
 
@@ -91,10 +92,10 @@ def token_required(f):
             current_user = verify_token(token)
             if current_user is None:
                 return jsonify({'error': 'Invalid token'}), 401
-                
+
             # Vulnerability: No token expiration check
             return f(current_user, *args, **kwargs)
-            
+
         except Exception as e:
             # Vulnerability: Detailed error exposure
             return jsonify({
