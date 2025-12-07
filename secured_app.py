@@ -35,6 +35,8 @@ from database import (
     init_connection_pool,
     init_db,
 )
+from rate_limit import ai_rate_limit
+from routes.ai_routes import ai_blueprint
 from routes.login.routes import login_bp
 from routes.register.routes import register_bp
 from routes.virtual_cards.routes import virtual_cards_bp
@@ -65,156 +67,156 @@ app.register_blueprint(swaggerui_blueprint, url_prefix=SWAGGER_URL)
 app.register_blueprint(register_bp)
 app.register_blueprint(login_bp)
 app.register_blueprint(virtual_cards_bp)
-
+app.register_blueprint(ai_blueprint)
 
 # Hardcoded secret key (CWE-798)
 app.secret_key = "secret123"
 
-# Rate limiting configuration
-RATE_LIMIT_WINDOW = 3 * 60 * 60  # 3 hours in seconds
-UNAUTHENTICATED_LIMIT = 5  # requests per IP per window
-AUTHENTICATED_LIMIT = 10  # requests per user per window
+# # Rate limiting configuration
+# RATE_LIMIT_WINDOW = 3 * 60 * 60  # 3 hours in seconds
+# UNAUTHENTICATED_LIMIT = 5  # requests per IP per window
+# AUTHENTICATED_LIMIT = 10  # requests per user per window
 
 # In-memory rate limiting storage
 # Format: {key: [(timestamp, request_count), ...]}
-rate_limit_storage = defaultdict(list)
+# rate_limit_storage = defaultdict(list)
 
 
-def cleanup_rate_limit_storage():
-    """Clean up old entries from rate limit storage"""
-    current_time = time.time()
-    cutoff_time = current_time - RATE_LIMIT_WINDOW
+# def cleanup_rate_limit_storage():
+#     """Clean up old entries from rate limit storage"""
+#     current_time = time.time()
+#     cutoff_time = current_time - RATE_LIMIT_WINDOW
 
-    for key in list(rate_limit_storage.keys()):
-        # Remove entries older than the rate limit window
-        rate_limit_storage[key] = [
-            (timestamp, count)
-            for timestamp, count in rate_limit_storage[key]
-            if timestamp > cutoff_time
-        ]
-        # Remove empty entries
-        if not rate_limit_storage[key]:
-            del rate_limit_storage[key]
-
-
-def get_client_ip():
-    """Get client IP address, considering proxy headers"""
-    if request.headers.get("X-Forwarded-For"):
-        return request.headers.get("X-Forwarded-For").split(",")[0].strip()
-    elif request.headers.get("X-Real-IP"):
-        return request.headers.get("X-Real-IP")
-    else:
-        return request.remote_addr
+#     for key in list(rate_limit_storage.keys()):
+#         # Remove entries older than the rate limit window
+#         rate_limit_storage[key] = [
+#             (timestamp, count)
+#             for timestamp, count in rate_limit_storage[key]
+#             if timestamp > cutoff_time
+#         ]
+#         # Remove empty entries
+#         if not rate_limit_storage[key]:
+#             del rate_limit_storage[key]
 
 
-def check_rate_limit(key, limit):
-    """Check if the request should be rate limited"""
-    cleanup_rate_limit_storage()
-    current_time = time.time()
-
-    # Count requests in the current window
-    request_count = sum(
-        count
-        for timestamp, count in rate_limit_storage[key]
-        if timestamp > current_time - RATE_LIMIT_WINDOW
-    )
-
-    if request_count >= limit:
-        return False, request_count, limit
-
-    # Add current request
-    rate_limit_storage[key].append((current_time, 1))
-    return True, request_count + 1, limit
+# def get_client_ip():
+#     """Get client IP address, considering proxy headers"""
+#     if request.headers.get("X-Forwarded-For"):
+#         return request.headers.get("X-Forwarded-For").split(",")[0].strip()
+#     elif request.headers.get("X-Real-IP"):
+#         return request.headers.get("X-Real-IP")
+#     else:
+#         return request.remote_addr
 
 
-def ai_rate_limit(f):
-    """Rate limiting decorator for AI endpoints"""
+# def check_rate_limit(key, limit):
+#     """Check if the request should be rate limited"""
+#     cleanup_rate_limit_storage()
+#     current_time = time.time()
 
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        client_ip = get_client_ip()
+#     # Count requests in the current window
+#     request_count = sum(
+#         count
+#         for timestamp, count in rate_limit_storage[key]
+#         if timestamp > current_time - RATE_LIMIT_WINDOW
+#     )
 
-        # Check if this is an authenticated request
-        auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            # Extract token and get user info
-            token = auth_header.split(" ")[1]
-            try:
-                user_data = verify_token(token)
-                if user_data:
-                    # Authenticated mode: rate limit by both user and IP
-                    user_key = f"ai_auth_user_{user_data['user_id']}"
-                    ip_key = f"ai_auth_ip_{client_ip}"
+#     if request_count >= limit:
+#         return False, request_count, limit
 
-                    # Check user-based rate limit
-                    user_allowed, user_count, user_limit = check_rate_limit(
-                        user_key, AUTHENTICATED_LIMIT
-                    )
-                    if not user_allowed:
-                        return jsonify(
-                            {
-                                "status": "error",
-                                "message": f"Rate limit exceeded for user. You have made {user_count} requests in the last 3 hours. Limit is {user_limit} requests per 3 hours.",
-                                "rate_limit_info": {
-                                    "limit_type": "authenticated_user",
-                                    "current_count": user_count,
-                                    "limit": user_limit,
-                                    "window_hours": 3,
-                                    "user_id": user_data["user_id"],
-                                },
-                            }
-                        ), 429
+#     # Add current request
+#     rate_limit_storage[key].append((current_time, 1))
+#     return True, request_count + 1, limit
 
-                    # Check IP-based rate limit
-                    ip_allowed, ip_count, ip_limit = check_rate_limit(
-                        ip_key, AUTHENTICATED_LIMIT
-                    )
-                    if not ip_allowed:
-                        return jsonify(
-                            {
-                                "status": "error",
-                                "message": f"Rate limit exceeded for IP address. This IP has made {ip_count} requests in the last 3 hours. Limit is {ip_limit} requests per 3 hours.",
-                                "rate_limit_info": {
-                                    "limit_type": "authenticated_ip",
-                                    "current_count": ip_count,
-                                    "limit": ip_limit,
-                                    "window_hours": 3,
-                                    "client_ip": client_ip,
-                                },
-                            }
-                        ), 429
 
-                    # Both checks passed, proceed with authenticated function
-                    return f(*args, **kwargs)
-            except:
-                pass  # Fall through to unauthenticated handling
+# def ai_rate_limit(f):
+#     """Rate limiting decorator for AI endpoints"""
 
-        # Unauthenticated mode: rate limit by IP only
-        ip_key = f"ai_unauth_ip_{client_ip}"
-        ip_allowed, ip_count, ip_limit = check_rate_limit(
-            ip_key, UNAUTHENTICATED_LIMIT
-        )
+#     @wraps(f)
+#     def decorated_function(*args, **kwargs):
+#         client_ip = get_client_ip()
 
-        if not ip_allowed:
-            return jsonify(
-                {
-                    "status": "error",
-                    "message": f"Rate limit exceeded. This IP address has made {ip_count} requests in the last 3 hours. Limit is {ip_limit} requests per 3 hours for unauthenticated users.",
-                    "rate_limit_info": {
-                        "limit_type": "unauthenticated_ip",
-                        "current_count": ip_count,
-                        "limit": ip_limit,
-                        "window_hours": 3,
-                        "client_ip": client_ip,
-                        "suggestion": "Log in to get higher rate limits (10 requests per 3 hours)",
-                    },
-                }
-            ), 429
+#         # Check if this is an authenticated request
+#         auth_header = request.headers.get("Authorization")
+#         if auth_header and auth_header.startswith("Bearer "):
+#             # Extract token and get user info
+#             token = auth_header.split(" ")[1]
+#             try:
+#                 user_data = verify_token(token)
+#                 if user_data:
+#                     # Authenticated mode: rate limit by both user and IP
+#                     user_key = f"ai_auth_user_{user_data['user_id']}"
+#                     ip_key = f"ai_auth_ip_{client_ip}"
 
-        # Rate limit check passed, proceed with unauthenticated function
-        return f(*args, **kwargs)
+#                     # Check user-based rate limit
+#                     user_allowed, user_count, user_limit = check_rate_limit(
+#                         user_key, AUTHENTICATED_LIMIT
+#                     )
+#                     if not user_allowed:
+#                         return jsonify(
+#                             {
+#                                 "status": "error",
+#                                 "message": f"Rate limit exceeded for user. You have made {user_count} requests in the last 3 hours. Limit is {user_limit} requests per 3 hours.",
+#                                 "rate_limit_info": {
+#                                     "limit_type": "authenticated_user",
+#                                     "current_count": user_count,
+#                                     "limit": user_limit,
+#                                     "window_hours": 3,
+#                                     "user_id": user_data["user_id"],
+#                                 },
+#                             }
+#                         ), 429
 
-    return decorated_function
+#                     # Check IP-based rate limit
+#                     ip_allowed, ip_count, ip_limit = check_rate_limit(
+#                         ip_key, AUTHENTICATED_LIMIT
+#                     )
+#                     if not ip_allowed:
+#                         return jsonify(
+#                             {
+#                                 "status": "error",
+#                                 "message": f"Rate limit exceeded for IP address. This IP has made {ip_count} requests in the last 3 hours. Limit is {ip_limit} requests per 3 hours.",
+#                                 "rate_limit_info": {
+#                                     "limit_type": "authenticated_ip",
+#                                     "current_count": ip_count,
+#                                     "limit": ip_limit,
+#                                     "window_hours": 3,
+#                                     "client_ip": client_ip,
+#                                 },
+#                             }
+#                         ), 429
+
+#                     # Both checks passed, proceed with authenticated function
+#                     return f(*args, **kwargs)
+#             except:
+#                 pass  # Fall through to unauthenticated handling
+
+#         # Unauthenticated mode: rate limit by IP only
+#         ip_key = f"ai_unauth_ip_{client_ip}"
+#         ip_allowed, ip_count, ip_limit = check_rate_limit(
+#             ip_key, UNAUTHENTICATED_LIMIT
+#         )
+
+#         if not ip_allowed:
+#             return jsonify(
+#                 {
+#                     "status": "error",
+#                     "message": f"Rate limit exceeded. This IP address has made {ip_count} requests in the last 3 hours. Limit is {ip_limit} requests per 3 hours for unauthenticated users.",
+#                     "rate_limit_info": {
+#                         "limit_type": "unauthenticated_ip",
+#                         "current_count": ip_count,
+#                         "limit": ip_limit,
+#                         "window_hours": 3,
+#                         "client_ip": client_ip,
+#                         "suggestion": "Log in to get higher rate limits (10 requests per 3 hours)",
+#                     },
+#                 }
+#             ), 429
+
+#         # Rate limit check passed, proceed with unauthenticated function
+#         return f(*args, **kwargs)
+
+#     return decorated_function
 
 
 def generate_account_number():
@@ -1715,83 +1717,83 @@ def get_payment_history(current_user):
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# moved to chat.py in routes
+# # AI CUSTOMER SUPPORT AGENT ROUTES (INTENTIONALLY VULNERABLE)
+# @app.route("/api/ai/chat", methods=["POST"])
+# @ai_rate_limit
+# @token_required
+# def ai_chat_authenticated(current_user):
+#     """
+#     Vulnerable AI Customer Support Chat (AUTHENTICATED MODE)
 
-# AI CUSTOMER SUPPORT AGENT ROUTES (INTENTIONALLY VULNERABLE)
-@app.route("/api/ai/chat", methods=["POST"])
-@ai_rate_limit
-@token_required
-def ai_chat_authenticated(current_user):
-    """
-    Vulnerable AI Customer Support Chat (AUTHENTICATED MODE)
+#     VULNERABILITIES:
+#     - Prompt Injection (CWE-77)
+#     - Information Disclosure (CWE-200)
+#     - Broken Authorization (CWE-862)
+#     - Insufficient Input Validation (CWE-20)
+#     - Data Exposure to External API (with DeepSeek)
+#     """
+#     try:
+#         data = request.get_json()
+#         user_message = data.get("message", "")
 
-    VULNERABILITIES:
-    - Prompt Injection (CWE-77)
-    - Information Disclosure (CWE-200)
-    - Broken Authorization (CWE-862)
-    - Insufficient Input Validation (CWE-20)
-    - Data Exposure to External API (with DeepSeek)
-    """
-    try:
-        data = request.get_json()
-        user_message = data.get("message", "")
+#         # VULNERABILITY: No input validation or sanitization
+#         if not user_message:
+#             return jsonify(
+#                 {"status": "error", "message": "Message is required"}
+#             ), 400
 
-        # VULNERABILITY: No input validation or sanitization
-        if not user_message:
-            return jsonify(
-                {"status": "error", "message": "Message is required"}
-            ), 400
+#         # VULNERABILITY: Pass sensitive user context directly to AI
+#         # Fetch fresh user data from database (VULNERABILITY: Additional DB query)
+#         fresh_user_data = execute_query(
+#             "SELECT id, username, account_number, balance, is_admin, profile_picture FROM users WHERE id = %s",
+#             (current_user["user_id"],),
+#             fetch=True,
+#         )
 
-        # VULNERABILITY: Pass sensitive user context directly to AI
-        # Fetch fresh user data from database (VULNERABILITY: Additional DB query)
-        fresh_user_data = execute_query(
-            "SELECT id, username, account_number, balance, is_admin, profile_picture FROM users WHERE id = %s",
-            (current_user["user_id"],),
-            fetch=True,
-        )
+#         if fresh_user_data:
+#             user_data = fresh_user_data[0]
+#             user_context = {
+#                 "user_id": user_data[0],
+#                 "username": user_data[1],
+#                 "account_number": user_data[2],
+#                 "balance": float(user_data[3]) if user_data[3] else 0.0,
+#                 "is_admin": bool(user_data[4]),
+#                 "profile_picture": user_data[5],
+#             }
+#         else:
+#             # Fallback to token data if DB query fails
+#             user_context = {
+#                 "user_id": current_user["user_id"],
+#                 "username": current_user["username"],
+#                 "account_number": current_user.get("account_number"),
+#                 "is_admin": current_user.get("is_admin", False),
+#                 "balance": 0.0,  # Default if no data found
+#                 "profile_picture": None,
+#             }
 
-        if fresh_user_data:
-            user_data = fresh_user_data[0]
-            user_context = {
-                "user_id": user_data[0],
-                "username": user_data[1],
-                "account_number": user_data[2],
-                "balance": float(user_data[3]) if user_data[3] else 0.0,
-                "is_admin": bool(user_data[4]),
-                "profile_picture": user_data[5],
-            }
-        else:
-            # Fallback to token data if DB query fails
-            user_context = {
-                "user_id": current_user["user_id"],
-                "username": current_user["username"],
-                "account_number": current_user.get("account_number"),
-                "is_admin": current_user.get("is_admin", False),
-                "balance": 0.0,  # Default if no data found
-                "profile_picture": None,
-            }
+#         # VULNERABILITY: No rate limiting on AI calls
+#         print("passing user context to ai chatbot: ", user_context)
+#         response = ai_agent.chat(user_message, user_context)
 
-        # VULNERABILITY: No rate limiting on AI calls
-        print("passing user context to ai chatbot: ", user_context)
-        response = ai_agent.chat(user_message, user_context)
+#         return jsonify(
+#             {
+#                 "status": "success",
+#                 "ai_response": response,
+#                 "mode": "authenticated",
+#                 "user_context_included": True,
+#             }
+#         )
 
-        return jsonify(
-            {
-                "status": "success",
-                "ai_response": response,
-                "mode": "authenticated",
-                "user_context_included": True,
-            }
-        )
-
-    except Exception as e:
-        # VULNERABILITY: Detailed error messages
-        return jsonify(
-            {
-                "status": "error",
-                "message": f"AI chat error: {str(e)}",
-                "system_info": ai_agent.get_system_info(),
-            }
-        ), 500
+#     except Exception as e:
+#         # VULNERABILITY: Detailed error messages
+#         return jsonify(
+#             {
+#                 "status": "error",
+#                 "message": f"AI chat error: {str(e)}",
+#                 "system_info": ai_agent.get_system_info(),
+#             }
+#         ), 500
 
 
 @app.route("/api/ai/chat/anonymous", methods=["POST"])
@@ -1876,94 +1878,94 @@ def ai_system_info():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
-@app.route("/api/ai/rate-limit-status", methods=["GET"])
-def ai_rate_limit_status():
-    """
-    Check current rate limit status for AI endpoints
-    Useful for debugging and transparency
-    """
-    try:
-        cleanup_rate_limit_storage()
-        client_ip = get_client_ip()
-        current_time = time.time()
+# @app.route("/api/ai/rate-limit-status", methods=["GET"])
+# def ai_rate_limit_status():
+#     """
+#     Check current rate limit status for AI endpoints
+#     Useful for debugging and transparency
+#     """
+#     try:
+#         cleanup_rate_limit_storage()
+#         client_ip = get_client_ip()
+#         current_time = time.time()
 
-        status = {
-            "status": "success",
-            "client_ip": client_ip,
-            "rate_limits": {
-                "unauthenticated": {
-                    "limit": UNAUTHENTICATED_LIMIT,
-                    "window_hours": 3,
-                    "requests_made": 0,
-                },
-                "authenticated": {
-                    "limit": AUTHENTICATED_LIMIT,
-                    "window_hours": 3,
-                    "user_requests_made": 0,
-                    "ip_requests_made": 0,
-                },
-            },
-        }
+#         status = {
+#             "status": "success",
+#             "client_ip": client_ip,
+#             "rate_limits": {
+#                 "unauthenticated": {
+#                     "limit": UNAUTHENTICATED_LIMIT,
+#                     "window_hours": 3,
+#                     "requests_made": 0,
+#                 },
+#                 "authenticated": {
+#                     "limit": AUTHENTICATED_LIMIT,
+#                     "window_hours": 3,
+#                     "user_requests_made": 0,
+#                     "ip_requests_made": 0,
+#                 },
+#             },
+#         }
 
-        # Check unauthenticated rate limit
-        unauth_key = f"ai_unauth_ip_{client_ip}"
-        unauth_count = sum(
-            count
-            for timestamp, count in rate_limit_storage[unauth_key]
-            if timestamp > current_time - RATE_LIMIT_WINDOW
-        )
-        status["rate_limits"]["unauthenticated"]["requests_made"] = (
-            unauth_count
-        )
-        status["rate_limits"]["unauthenticated"]["remaining"] = max(
-            0, UNAUTHENTICATED_LIMIT - unauth_count
-        )
+#         # Check unauthenticated rate limit
+#         unauth_key = f"ai_unauth_ip_{client_ip}"
+#         unauth_count = sum(
+#             count
+#             for timestamp, count in rate_limit_storage[unauth_key]
+#             if timestamp > current_time - RATE_LIMIT_WINDOW
+#         )
+#         status["rate_limits"]["unauthenticated"]["requests_made"] = (
+#             unauth_count
+#         )
+#         status["rate_limits"]["unauthenticated"]["remaining"] = max(
+#             0, UNAUTHENTICATED_LIMIT - unauth_count
+#         )
 
-        # Check if user is authenticated
-        auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            token = auth_header.split(" ")[1]
-            try:
-                user_data = verify_token(token)
-                if user_data:
-                    # Check authenticated rate limits
-                    user_key = f"ai_auth_user_{user_data['user_id']}"
-                    ip_key = f"ai_auth_ip_{client_ip}"
+#         # Check if user is authenticated
+#         auth_header = request.headers.get("Authorization")
+#         if auth_header and auth_header.startswith("Bearer "):
+#             token = auth_header.split(" ")[1]
+#             try:
+#                 user_data = verify_token(token)
+#                 if user_data:
+#                     # Check authenticated rate limits
+#                     user_key = f"ai_auth_user_{user_data['user_id']}"
+#                     ip_key = f"ai_auth_ip_{client_ip}"
 
-                    user_count = sum(
-                        count
-                        for timestamp, count in rate_limit_storage[user_key]
-                        if timestamp > current_time - RATE_LIMIT_WINDOW
-                    )
-                    ip_count = sum(
-                        count
-                        for timestamp, count in rate_limit_storage[ip_key]
-                        if timestamp > current_time - RATE_LIMIT_WINDOW
-                    )
+#                     user_count = sum(
+#                         count
+#                         for timestamp, count in rate_limit_storage[user_key]
+#                         if timestamp > current_time - RATE_LIMIT_WINDOW
+#                     )
+#                     ip_count = sum(
+#                         count
+#                         for timestamp, count in rate_limit_storage[ip_key]
+#                         if timestamp > current_time - RATE_LIMIT_WINDOW
+#                     )
 
-                    status["rate_limits"]["authenticated"][
-                        "user_requests_made"
-                    ] = user_count
-                    status["rate_limits"]["authenticated"][
-                        "ip_requests_made"
-                    ] = ip_count
-                    status["rate_limits"]["authenticated"][
-                        "user_remaining"
-                    ] = max(0, AUTHENTICATED_LIMIT - user_count)
-                    status["rate_limits"]["authenticated"]["ip_remaining"] = (
-                        max(0, AUTHENTICATED_LIMIT - ip_count)
-                    )
-                    status["authenticated_user"] = {
-                        "user_id": user_data["user_id"],
-                        "username": user_data["username"],
-                    }
-            except:
-                pass  # Token invalid, stay with unauthenticated status
+#                     status["rate_limits"]["authenticated"][
+#                         "user_requests_made"
+#                     ] = user_count
+#                     status["rate_limits"]["authenticated"][
+#                         "ip_requests_made"
+#                     ] = ip_count
+#                     status["rate_limits"]["authenticated"][
+#                         "user_remaining"
+#                     ] = max(0, AUTHENTICATED_LIMIT - user_count)
+#                     status["rate_limits"]["authenticated"]["ip_remaining"] = (
+#                         max(0, AUTHENTICATED_LIMIT - ip_count)
+#                     )
+#                     status["authenticated_user"] = {
+#                         "user_id": user_data["user_id"],
+#                         "username": user_data["username"],
+#                     }
+#             except:
+#                 pass  # Token invalid, stay with unauthenticated status
 
-        return jsonify(status)
+#         return jsonify(status)
 
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+#     except Exception as e:
+#         return jsonify({"status": "error", "message": str(e)}), 500
 
 
 if __name__ == "__main__":

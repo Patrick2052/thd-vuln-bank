@@ -1,15 +1,13 @@
 from flask import Blueprint, jsonify
+from pydantic import BaseModel
 
-from auth import authorization_required, token_required
 from config import SECURE_MODE
 from database import execute_query
 
 virtual_cards_bp = Blueprint("virtual-cards", __name__, "./static")
 
-
 def get_auth_decorator():
     """Depending on secure mode get an insecure or secure auth decorator"""
-
     from auth import authorization_required, token_required
 
     if SECURE_MODE:
@@ -25,6 +23,7 @@ def get_auth_decorator():
 )
 @get_auth_decorator()
 def toggle_card_freeze(current_user, card_id):
+    """Toggle the frozen state of a users virtual card in the database"""
 
     def _unsecure_card_freeze_route():
         """
@@ -66,8 +65,10 @@ def toggle_card_freeze(current_user, card_id):
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         """
         try:
-            # Vulnerability: No CSRF protection
-            # Vulnerability: BOLA - no verification if card belongs to user -> fixed by extended where query
+            # input validation for outside input
+            if not isinstance(card_id, int) or card_id < 0:
+                raise ValueError("Card id is not valid")
+
             query = """
                 UPDATE virtual_cards 
                 SET is_frozen = NOT is_frozen 
