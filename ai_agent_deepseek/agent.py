@@ -1,10 +1,17 @@
 import abc
 from abc import ABC
+from typing import Any, Optional
+
+from globals import ChatContext
 
 
 class AIAgent(ABC):
     @abc.abstractmethod
-    def chat(self, user_message, user_context=None):
+    def chat(
+        self,
+        user_message: str,
+        user_context=ChatContext | dict[str, any],
+    ):
         """Process a user message and return a response dict."""
         raise NotImplementedError
 
