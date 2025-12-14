@@ -1,3 +1,10 @@
+"""
+docs on prompt injection https://cheatsheetseries.owasp.org/cheatsheets/LLM_Prompt_Injection_Prevention_Cheat_Sheet.html
+
+
+"""
+
+
 # AI CUSTOMER SUPPORT AGENT ROUTES (INTENTIONALLY VULNERABLE)
 import html
 import re

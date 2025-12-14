@@ -1,8 +1,9 @@
 import os
+import time
+from datetime import datetime
+
 import psycopg2
 from psycopg2 import pool
-from datetime import datetime
-import time
 
 # Vulnerable database configuration
 # CWE-259: Use of Hard-coded Password
@@ -72,10 +73,11 @@ def init_db():
                     balance DECIMAL(15, 2) DEFAULT 1000.0,
                     is_admin BOOLEAN DEFAULT FALSE,
                     profile_picture TEXT,
-                    reset_pin TEXT  -- Vulnerability: Reset PINs stored in plaintext
+                    reset_pin TEXT,  -- Vulnerability: Reset PINs stored in plaintext
+                    password_hash TEXT
                 )
             ''')
-            
+
             # Create loans table
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS loans (
@@ -85,7 +87,7 @@ def init_db():
                     status TEXT DEFAULT 'pending'
                 )
             ''')
-            
+
             # Create transactions table
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS transactions (
