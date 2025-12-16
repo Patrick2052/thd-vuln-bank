@@ -308,7 +308,8 @@ def check_balance(account_number):
     try:
         # Vulnerability: SQL Injection possible
         user = execute_query(
-            f"SELECT username, balance FROM users WHERE account_number='{account_number}'"
+            "SELECT username, balance FROM users WHERE account_number = %s",
+            (account_number,)
         )
 
         if user:
@@ -897,7 +898,8 @@ def create_admin(current_user):
         # Vulnerability: No password complexity requirements
         # Vulnerability: No account number uniqueness check
         execute_query(
-            f"INSERT INTO users (username, password, account_number, is_admin) VALUES ('{username}', '{password}', '{account_number}', true)",
+            "INSERT INTO users (username, password, account_number, is_admin) VALUES (%s, %s, %s, true)",
+            (username, password, account_number),
             fetch=False,
         )
 
@@ -1020,9 +1022,10 @@ def api_v1_forgot_password():
         data = request.get_json()
         username = data.get("username")
 
-        # Vulnerability: SQL Injection possible
+        # Fixed: Using parameterized query
         user = execute_query(
-            f"SELECT id FROM users WHERE username='{username}'"
+            "SELECT id FROM users WHERE username = %s",
+            (username,)
         )
 
         if user:
@@ -1071,7 +1074,8 @@ def api_v2_forgot_password():
 
         # Vulnerability: SQL Injection still possible
         user = execute_query(
-            f"SELECT id FROM users WHERE username='{username}'"
+            "SELECT id FROM users WHERE username = %s",
+            (username,)
         )
 
         if user:
