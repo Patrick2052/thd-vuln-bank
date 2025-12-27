@@ -869,20 +869,38 @@ def admin_panel(current_user):
 @app.route('/admin/approve_loan/<int:loan_id>', methods=['POST'])
 @token_required
 def approve_loan(current_user, loan_id):
+    """
+    FIXES:
+    - Input validation for loan_id 
+    - Checking loan amount > 0
+    - Proper error handling without sensitive info leakage
+
+    IGNORED:
+    - Checking of loan amount against maximum limits (out of scope for demo)
+    """
     if not current_user.get('is_admin'):
         return jsonify({'error': 'Access Denied'}), 403
-    
+
+    if not loan_id or loan_id < 0:
+        return jsonify({'error': 'Invalid loan ID'}), 400
+
     try:
-        # Vulnerability: Race condition in loan approval
-        # Vulnerability: No validation if loan is already approved
         loan = execute_query(
-            "SELECT * FROM loans WHERE id = %s",
+            "SELECT * FROM loans WHERE id = %s and status != 'approved'",
             (loan_id,)
         )[0]
-        
+
+        loan_amount = loan[2]
+
+        if loan_amount <= 0:
+            return jsonify({
+                'status': 'error',
+                'message': 'Invalid loan amount',
+                'loan_id': loan_id,
+                'loan_amount': float(loan_amount)
+            }), 400
+
         if loan:
-            # Vulnerability: No transaction atomicity
-            # Vulnerability: No validation of loan amount
             queries = [
                 (
                     "UPDATE loans SET status='approved' WHERE id = %s",
@@ -898,19 +916,6 @@ def approve_loan(current_user, loan_id):
             return jsonify({
                 'status': 'success',
                 'message': 'Loan approved successfully',
-                'debug_info': {  # Vulnerability: Information disclosure
-                    'loan_id': loan_id,
-                    'loan_amount': float(loan[2]),
-                    'user_id': loan[1],
-                    'approved_by': current_user['username'],
-                    'approved_at': str(datetime.now()),
-                    'loan_details': {  # Excessive data exposure
-                        'id': loan[0],
-                        'user_id': loan[1],
-                        'amount': float(loan[2]),
-                        'status': loan[3]
-                    }
-                }
             })
         
         return jsonify({
