@@ -319,18 +319,18 @@ def login():
     return render_template('login.html')
     
 
-@app.route('/debug/users')
-def debug_users():
-    users = execute_query("SELECT id, username, password, account_number, is_admin FROM users")
-    return jsonify({'users': [
-        {
-            'id': u[0],
-            'username': u[1],
-            'password': u[2],
-            'account_number': u[3],
-            'is_admin': u[4]
-        } for u in users
-    ]})
+# @app.route('/debug/users')
+# def debug_users():
+#     users = execute_query("SELECT id, username, password, account_number, is_admin FROM users")
+#     return jsonify({'users': [
+#         {
+#             'id': u[0],
+#             'username': u[1],
+#             'password': u[2],
+#             'account_number': u[3],
+#             'is_admin': u[4]
+#         } for u in users
+#     ]})
 
 @app.route('/dashboard')
 @token_required
@@ -364,19 +364,28 @@ def dashboard(current_user):
                          loans=loans,
                          is_admin=current_user.get('is_admin', False))
 
-# Check balance endpoint
+# TODO fix
 @app.route('/check_balance/<account_number>')
-def check_balance(account_number):
-    # Broken Object Level Authorization (BOLA) vulnerability
-    # No authentication check, anyone can check any account balance
+@token_required # TODO check the token implementation
+def check_balance(current_user, account_number:str):
+    """
+    FIXES:
+    - Added authentication check to prevent BOLA
+    - fixed sql injection by using parameterized queries
+    - input validation to ensure account_number is digits only
+    """
+    if not account_number.isdigit():
+        return jsonify({
+            'status': 'error',
+        }), 400
+
     try:
-        # Vulnerability: SQL Injection possible
         user = execute_query(
-            f"SELECT username, balance FROM users WHERE account_number='{account_number}'"
+            f"SELECT username, balance FROM users WHERE user_id=%s AND account_number=%s",
+            (current_user['user_id'], account_number,)
         )
         
         if user:
-            # Vulnerability: Information disclosure
             return jsonify({
                 'status': 'success',
                 'username': user[0][0],
@@ -385,12 +394,11 @@ def check_balance(account_number):
             })
         return jsonify({
             'status': 'error',
-            'message': 'Account not found'
         }), 404
     except Exception as e:
+        print(e)
         return jsonify({
             'status': 'error',
-            'message': str(e)
         }), 500
 
 # Transfer endpoint
