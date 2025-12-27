@@ -1,26 +1,43 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify, make_response
-from datetime import datetime, timedelta
-import random
-import string
 import html
 import os
+import platform
+import random
+import string
+import time
+from collections import defaultdict
+from datetime import datetime, timedelta
+from functools import wraps
+from urllib.parse import urlparse
+
+import requests
 from dotenv import load_dotenv
+from flask import (
+    Flask,
+    jsonify,
+    make_response,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
+from flask_cors import CORS
+from flask_swagger_ui import get_swaggerui_blueprint
+from flask_wtf.csrf import CSRFProtect
 from pydantic import BaseModel, field_validator
 from pydantic_core import ValidationError
-from auth import authorization_header_required, check_password_strength, generate_token, token_required, verify_token, init_auth_routes
-import auth
-from werkzeug.utils import secure_filename 
-from flask_swagger_ui import get_swaggerui_blueprint
-from flask_cors import CORS
-from database import init_connection_pool, init_db, execute_query, execute_transaction
-from ai_agent_deepseek import ai_agent
-import time
-from functools import wraps
-from collections import defaultdict
-import requests
-from urllib.parse import urlparse
-import platform
+from werkzeug.utils import secure_filename
 
+import auth
+from ai_agent_deepseek import ai_agent
+from auth import (
+    authorization_header_required,
+    check_password_strength,
+    generate_token,
+    init_auth_routes,
+    token_required,
+    verify_token,
+)
+from database import execute_query, execute_transaction, init_connection_pool, init_db
 from validators import RegisterFormModel, TransferFormModel
 
 # Load environment variables
@@ -30,6 +47,8 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 # TODO implement flask csrf protection
+csrf = CSRFProtect(app)
+
 
 # Initialize database connection pool
 init_connection_pool()

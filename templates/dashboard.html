@@ -120,6 +120,7 @@
                         <!-- Vulnerability: No file type validation -->
                         <!-- Vulnerability: No file size limits -->
                      <form id="profileUploadForm" enctype="multipart/form-data">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                         <input type="file" id="profile_picture" name="profile_picture" accept="image/*" style="display: none;" onchange="document.getElementById('profileUploadForm').requestSubmit();">
                         <button type="button" onclick="document.getElementById('profile_picture').click()">Change Profile Picture</button>
                         <button type="button" id="profileUrlButton">Import from URL</button>
@@ -135,6 +136,7 @@
             <!-- Vulnerability: No CSRF protection -->
             <!-- Vulnerability: No amount validation -->
             <form id="transferForm" class="form-section">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                 <div class="form-group">
                     <label for="to_account">Recipient Account Number</label>
                     <input type="text" id="to_account" name="to_account" placeholder="Enter recipient's account number" required>
@@ -158,6 +160,7 @@
             </div>
             <!-- Vulnerability: No loan amount validation -->
             <form id="loanForm" class="form-section">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                 <div class="form-group">
                     <label for="loan_amount">Loan Amount</label>
                     <input type="number" id="loan_amount" name="amount" placeholder="Enter the amount you need" step="0.01" required>
@@ -228,6 +231,9 @@
                         <button class="modal-close" onclick="hideCreateCardModal()">&times;</button>
                     </div>
                     <form id="createCardForm">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+                        
                         <div class="form-group">
                             <label for="card_limit">Card Limit</label>
                             <input type="number" id="card_limit" name="card_limit" placeholder="Enter card limit" step="0.01" required>
@@ -286,6 +292,7 @@
                         <button class="modal-close" onclick="hidePayBillModal()">&times;</button>
                     </div>
                     <form id="payBillForm">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                         <div class="form-group">
                             <label for="billCategory">Bill Category</label>
                             <select id="billCategory" onchange="loadBillers(this.value)" required>

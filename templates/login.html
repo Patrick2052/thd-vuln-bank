@@ -12,9 +12,9 @@
     <div class="container">
         <h1>Welcome Back</h1>
         <div id="message"></div>
-        <!-- Vulnerability: No CSRF protection -->
-        <!-- Vulnerability: No rate limiting -->
+        <!-- TODO Vulnerability: No rate limiting -->
         <form id="loginForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
             <input type="text" name="username" placeholder="Username" required>
             <input type="password" name="password" placeholder="Password" required>
             <button type="submit">Login</button>

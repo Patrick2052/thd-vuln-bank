@@ -49,7 +49,8 @@
                         <td>
                             <!-- Vulnerability: No confirmation for delete -->
                             <form class="delete-account-form" data-user-id="{{ user[0] }}">
-                                <button type="submit">Delete</button>
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                <button type="submit">Delete</button>   
                             </form>
                         </td>
                     </tr>
@@ -98,6 +99,7 @@
                         <td>
                             <!-- Vulnerability: No approval confirmation -->
                             <form class="approve-loan-form" data-loan-id="{{ loan[0] }}">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                 <button type="submit">Approve</button>
                             </form>
                         </td>
