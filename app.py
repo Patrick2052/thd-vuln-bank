@@ -5,7 +5,7 @@ import string
 import html
 import os
 from dotenv import load_dotenv
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from pydantic_core import ValidationError
 from auth import generate_token, token_required, verify_token, init_auth_routes
 import auth
@@ -29,6 +29,7 @@ load_dotenv()
 # Initialize Flask app
 app = Flask(__name__)
 CORS(app)
+# TODO implement flask csrf protection
 
 # Initialize database connection pool
 init_connection_pool()
@@ -831,9 +832,23 @@ END OF SECTION
 @app.route('/request_loan', methods=['POST'])
 @token_required
 def request_loan(current_user):
+    """
+    FIXES:
+    - Input validation for loan amount
+    - Proper error handling without sensitive info leakage 
+    """
+    class LoanRequestBody(BaseModel):
+        amount: float
+
+        @field_validator('amount', mode='after')
+        @classmethod
+        def amount_must_be_positive(cls, v):
+            if v <= 0:
+                raise ValueError('Loan amount must be greater than zero')
+            return v
+
     try:
-        data = request.get_json()
-        # Vulnerability: No input validation on amount
+        data = LoanRequestBody(**request.get_json())
         amount = float(data.get('amount'))
         
         execute_query(
@@ -851,13 +866,21 @@ def request_loan(current_user):
         print(f"Loan request error: {str(e)}")
         return jsonify({
             'status': 'error',
-            'message': str(e)
         }), 500
 
-# Hidden admin endpoint (security through obscurity)
+
+
 @app.route('/sup3r_s3cr3t_admin')
 @token_required
 def admin_panel(current_user):
+    """
+    in the original vuln application this endpoint was market
+    as vuln because security through obscurity was used to protect it.
+
+    It still has admin checks to prevent BOLA. So i'll keep the name of the route
+    and consider it fixed.
+    """
+
     if not current_user['is_admin']:
         return "Access Denied", 403
         
