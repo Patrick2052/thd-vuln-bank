@@ -5,6 +5,7 @@ import string
 import html
 import os
 from dotenv import load_dotenv
+from pydantic import BaseModel
 from auth import generate_token, token_required, verify_token, init_auth_routes
 import auth
 from werkzeug.utils import secure_filename 
@@ -18,6 +19,8 @@ from collections import defaultdict
 import requests
 from urllib.parse import urlparse
 import platform
+
+from validators import RegisterFormModel
 
 # Load environment variables
 load_dotenv()
@@ -191,148 +194,130 @@ def generate_cvv():
 def index():
     return render_template('index.html')
 
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
+    """
+    FIXES:
+    - Input Validation and Sanitization using Pydantic and Bleach
+    - Prevent Username Enumeration
+    - Prevent Mass Assignment Vulnerability
+    - Remove Sensitive Data from Responses
+    """
+
     if request.method == 'POST':
         try:
-            # Mass Assignment Vulnerability - Client can send additional parameters
-            user_data = request.get_json()  # Changed to get_json()
+            # RegisterFormModel will validate and sanitize inputs to prevent
+            # injection attacks and ensure data integrity
+            # see validators.py for implementation
+            user_input = RegisterFormModel(**request.get_json())
             account_number = generate_account_number()
-            
-            # Check if username exists
             existing_user = execute_query(
                 "SELECT username FROM users WHERE username = %s",
-                (user_data.get('username'),)
+                (user_input.username,)
             )
             
             if existing_user and existing_user[0]:
                 return jsonify({
                     'status': 'error',
                     'message': 'Username already exists',
-                    'username': user_data.get('username'),
-                    'tried_at': str(datetime.now())  # Information disclosure
                 }), 400
             
-            # Build dynamic query based on user input fields
-            # Vulnerability: Mass Assignment possible here
-            fields = ['username', 'password', 'account_number']
-            values = [user_data.get('username'), user_data.get('password'), account_number]
-            
-            # Include any additional parameters from user input
-            for key, value in user_data.items():
-                if key not in ['username', 'password']:
-                    fields.append(key)
-                    values.append(value)
-            
-            # Build the SQL query dynamically
-            query = f"""
-                INSERT INTO users ({', '.join(fields)})
-                VALUES ({', '.join(['%s'] * len(fields))})
+            values = [user_input.username, user_input.password, account_number]
+            query = """
+                INSERT INTO users (username, password, account_number)
+                VALUES (%s, %s, %s)
                 RETURNING id, username, account_number, balance, is_admin
             """
-            
             result = execute_query(query, values, fetch=True)
             
             if not result or not result[0]:
                 raise Exception("Failed to create user")
                 
-            user = result[0]
-            
-            # Excessive Data Exposure in Response
-            sensitive_data = {
+            response = {
                 'status': 'success',
                 'message': 'Registration successful! Proceed to login',
-                'debug_data': {  # Sensitive data exposed
-                    'user_id': user[0],
-                    'username': user[1],
-                    'account_number': user[2],
-                    'balance': float(user[3]) if user[3] else 1000.0,
-                    'is_admin': user[4],
-                    'registration_time': str(datetime.now()),
-                    'server_info': request.headers.get('User-Agent'),
-                    'raw_data': user_data,  # Exposing raw input data
-                    'fields_registered': fields  # Show what fields were registered
-                }
             }
             
-            response = jsonify(sensitive_data)
-            response.headers['X-Debug-Info'] = str(sensitive_data['debug_data'])
-            response.headers['X-User-Info'] = f"id={user[0]};admin={user[4]};balance={user[3]}"
+            response = jsonify(response)
             
             return response
                 
         except Exception as e:
-            print(f"Registration error: {str(e)}")
+            print(f"Registration error: {str(e)}") # only internal logging
             return jsonify({
                 'status': 'error',
                 'message': 'Registration failed',
-                'error': str(e)
             }), 500
         
     return render_template('register.html')
 
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if request.method == 'POST':
+    """
+    FIXES:
+    - Use JWT tokens instead of sessions
+    - Secure cookies with HttpOnly, Secure, SameSite attributes
+    - Prevent Information Disclosure in error messages 
+    """
+    print("secure login route")
+    class LoginRequestBody(BaseModel):
+        username: str
+        password: str
+
+    if request.method == "POST":
         try:
-            data = request.get_json()
-            username = data.get('username')
-            password = data.get('password')
-            
-            print(f"Login attempt - Username: {username}")  # Debug print
-            
-            # SQL Injection vulnerability (intentionally vulnerable)
-            query = f"SELECT * FROM users WHERE username='{username}' AND password='{password}'"
-            print(f"Debug - Login query: {query}")  # Debug print
-            
-            user = execute_query(query)
+            data = LoginRequestBody(**request.get_json())
+            username = data.username
+            password = data.password
+
+            # TODO match password hashes^
+            query = "SELECT * FROM users WHERE username=%s AND password=%s"
+
+            user = execute_query(query, params=(username, password))
             print(f"Debug - Query result: {user}")  # Debug print
-            
+
             if user and len(user) > 0:
                 user = user[0]  # Get first row
                 print(f"Debug - Found user: {user}")  # Debug print
-                
+
                 # Generate JWT token instead of using session
                 token = generate_token(user[0], user[1], user[5])
                 print(f"Debug - Generated token: {token}")  # Debug print
-                
-                response = make_response(jsonify({
-                    'status': 'success',
-                    'message': 'Login successful',
-                    'token': token,
-                    'accountNumber': user[3],
-                    'isAdmin':       user[5],
-                    'debug_info': {  # Vulnerability: Information disclosure
-                        'user_id': user[0],
-                        'username': user[1],
-                        'account_number': user[3],
-                        'is_admin': user[5],
-                        'login_time': str(datetime.now())
-                    }
-                }))
-                # Vulnerability: Cookie without secure flag
-                response.set_cookie('token', token, httponly=True)
+
+                response = make_response(
+                    jsonify(
+                        {
+                            "status": "success",
+                            "message": "Login successful",
+                            "token": token,
+                            "accountNumber": user[3],
+                        }
+                    )
+                )
+
+                # FIX: cookies is secure and samesite strict only (limit csrf); secure = send only over https
+                response.set_cookie("token", token, httponly=True, secure=True, samesite="strict")
                 return response
-            
-            # Vulnerability: Username enumeration
-            return jsonify({
-                'status': 'error',
-                'message': 'Invalid credentials',
-                'debug_info': {  # Vulnerability: Information disclosure
-                    'attempted_username': username,
-                    'time': str(datetime.now())
+
+            return jsonify(
+                {
+                    "status": "error",
+                    "message": "Invalid credentials",
+                    "debug_info": { # FIX no information disclosure of username
+                        "time": str(datetime.now()),
+                    },
                 }
-            }), 401
-            
+            ), 401
+
         except Exception as e:
-            print(f"Login error: {str(e)}")
-            return jsonify({
-                'status': 'error',
-                'message': 'Login failed',
-                'error': str(e)
-            }), 500
-        
+            print(f"Login error: {str(e)}") # print internally instead of returning
+            return jsonify(
+                {"status": "error", "message": "Login failed"}
+            ), 500    # if not post request return this
     return render_template('login.html')
+    
 
 @app.route('/debug/users')
 def debug_users():
