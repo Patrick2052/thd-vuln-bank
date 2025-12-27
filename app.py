@@ -1138,102 +1138,97 @@ def reset_password():
             
     return render_template('reset_password.html')
 
-# V1 API - Maintains all current vulnerabilities
-@app.route('/api/v1/forgot-password', methods=['POST'])
-def api_v1_forgot_password():
-    try:
-        data = request.get_json()
-        username = data.get('username')
-        
-        # Vulnerability: SQL Injection possible
-        user = execute_query(
-            f"SELECT id FROM users WHERE username='{username}'"
-        )
-        
-        if user:
-            # Weak reset pin logic (CWE-330)
-            # Using only 3 digits makes it easily guessable
-            reset_pin = str(random.randint(100, 999))
-            
-            # Store the reset PIN in database (in plaintext - CWE-319)
-            execute_query(
-                "UPDATE users SET reset_pin = %s WHERE username = %s",
-                (reset_pin, username),
-                fetch=False
-            )
-            
-            # Vulnerability: Information disclosure
-            return jsonify({
-                'status': 'success',
-                'message': 'Reset PIN has been sent to your email.',
-                'debug_info': {  # Vulnerability: Information disclosure
-                    'timestamp': str(datetime.now()),
-                    'username': username,
-                    'pin_length': len(reset_pin),
-                    'pin': reset_pin  # Intentionally exposing pin for learning
-                }
-            })
-        else:
-            # Vulnerability: Username enumeration
-            return jsonify({
-                'status': 'error',
-                'message': 'User not found'
-            }), 404
-                
-    except Exception as e:
-        # Vulnerability: Detailed error exposure
-        print(f"Forgot password error: {str(e)}")
-        return jsonify({
-            'status': 'error',
-            'message': str(e)
-        }), 500
 
-# V2 API - Fixes excessive data exposure but still vulnerable to other issues
+# ! TODO this route is not active in the app, it's just for documentation purposes
+# V1 API - Maintains all current vulnerabilities
+# @app.route('/api/v1/forgot-password', methods=['POST'])
+# def api_v1_forgot_password():
+#     try:
+#         data = request.get_json()
+#         username = data.get('username')
+        
+#         # Vulnerability: SQL Injection possible
+#         user = execute_query(
+#             f"SELECT id FROM users WHERE username='{username}'"
+#         )
+        
+#         if user:
+#             # Weak reset pin logic (CWE-330)
+#             # Using only 3 digits makes it easily guessable
+#             reset_pin = str(random.randint(100, 999))
+            
+#             # Store the reset PIN in database (in plaintext - CWE-319)
+#             execute_query(
+#                 "UPDATE users SET reset_pin = %s WHERE username = %s",
+#                 (reset_pin, username),
+#                 fetch=False
+#             )
+            
+#             # Vulnerability: Information disclosure
+#             return jsonify({
+#                 'status': 'success',
+#                 'message': 'Reset PIN has been sent to your email.',
+#                 'debug_info': {  # Vulnerability: Information disclosure
+#                     'timestamp': str(datetime.now()),
+#                     'username': username,
+#                     'pin_length': len(reset_pin),
+#                     'pin': reset_pin  # Intentionally exposing pin for learning
+#                 }
+#             })
+#         else:
+#             # Vulnerability: Username enumeration
+#             return jsonify({
+#                 'status': 'error',
+#                 'message': 'User not found'
+#             }), 404
+                
+#     except Exception as e:
+#         # Vulnerability: Detailed error exposure
+#         print(f"Forgot password error: {str(e)}")
+#         return jsonify({
+#             'status': 'error',
+#             'message': str(e)
+#         }), 500
+
 @app.route('/api/v2/forgot-password', methods=['POST'])
 def api_v2_forgot_password():
+    """
+    FIXES:
+    - increased reset pin complexity
+    - SQL Injection prevention with parameterized queries
+    - Reduced information disclosure in response
+    - usename enumeration mitigated by always returning success message
+    """
+    class ForgotPasswordRequestBody(BaseModel):
+        username: str
+
     try:
-        data = request.get_json()
-        username = data.get('username')
-        
-        # Vulnerability: SQL Injection still possible
+        data = ForgotPasswordRequestBody(**request.get_json())
+        username = data.username 
         user = execute_query(
-            f"SELECT id FROM users WHERE username='{username}'"
+            "SELECT id FROM users WHERE username=%s",
+            (username,)
         )
         
         if user:
-            # Weak reset pin logic (CWE-330) - still using 3 digits
-            reset_pin = str(random.randint(100, 999))
+            reset_pin = str(random.randint(100000, 999999))
             
-            # Store the reset PIN in database (in plaintext - CWE-319)
+            # TODO or put in outlook: Store the reset PIN in database (in plaintext - CWE-319)
             execute_query(
                 "UPDATE users SET reset_pin = %s WHERE username = %s",
                 (reset_pin, username),
                 fetch=False
             )
             
-            # Fixed: No longer exposing PIN and PIN length in response
-            return jsonify({
-                'status': 'success',
-                'message': 'Reset PIN has been sent to your email.',
-                'debug_info': {  # Still excessive data exposure but not PIN
-                    'timestamp': str(datetime.now()),
-                    'username': username
-                    # PIN and PIN length removed
-                }
-            })
-        else:
-            # Vulnerability: Username enumeration still possible
-            return jsonify({
-                'status': 'error',
-                'message': 'User not found'
-            }), 404
+        return jsonify({
+            'status': 'success',
+            'message': 'Reset PIN has been sent to your email.',
+        })
                 
     except Exception as e:
-        # Vulnerability: Detailed error exposure still exists
         print(f"Forgot password error: {str(e)}")
         return jsonify({
             'status': 'error',
-            'message': str(e)
         }), 500
 
 # V1 API for reset password
