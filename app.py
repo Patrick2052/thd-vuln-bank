@@ -552,6 +552,7 @@ def get_transaction_history(current_user, account_number: str):
             'message': 'unexpected server error',
         }), 500
 
+# TODO exploit and fix
 @app.route('/upload_profile_picture', methods=['POST'])
 @token_required
 def upload_profile_picture(current_user):
@@ -600,6 +601,7 @@ def upload_profile_picture(current_user):
             'file_path': file_path  # Vulnerability: Information disclosure
         }), 500
 
+# TODO exploit and fix
 # Upload profile picture by URL (Intentionally Vulnerable to SSRF)
 @app.route('/upload_profile_picture_url', methods=['POST'])
 @token_required
@@ -654,6 +656,25 @@ def upload_profile_picture_url(current_user):
             'status': 'error',
             'message': str(e)
         }), 500
+
+# TODO move all of this section to a seperate file
+"""
+####################################################
+####################################################
+####################################################
+
+
+INTERNAL ONLY ENDPOINTS FOR SSRF DEMO
+
+also
+
+LATEST ENDPOINTS FOR CLOUD METADATA MOCK
+
+
+####################################################
+####################################################
+####################################################
+"""
 
 # INTERNAL-ONLY ENDPOINTS FOR SSRF DEMO (INTENTIONALLY SENSITIVE)
 def _is_loopback_request():
@@ -790,6 +811,21 @@ def metadata_iam_role():
         'RoleArn': 'arn:aws:iam::123456789012:role/vulnbank-role'
     }
     return jsonify(creds)
+
+
+
+"""
+####################################################
+####################################################
+####################################################
+
+END OF SECTION
+
+
+####################################################
+####################################################
+####################################################
+"""
 
 # Loan request endpoint
 @app.route('/request_loan', methods=['POST'])
