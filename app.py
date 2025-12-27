@@ -1356,8 +1356,12 @@ def api_transactions(current_user):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/virtual-cards/create', methods=['POST'])
-@token_required
+@authorization_header_required
 def create_virtual_card(current_user):
+    """
+    FIXES:
+    - authorization header only to prevent CSRF 
+    """
     try:
         data = request.get_json()
         
@@ -1411,8 +1415,12 @@ def create_virtual_card(current_user):
         }), 500
 
 @app.route('/api/virtual-cards', methods=['GET'])
-@token_required
+@authorization_header_required
 def get_virtual_cards(current_user):
+    """
+    FIXES:
+    - authorization header only to prevent CSRF 
+    """
     try:
         # Vulnerability: No pagination
         query = f"""
@@ -1447,8 +1455,13 @@ def get_virtual_cards(current_user):
         }), 500
 
 @app.route('/api/virtual-cards/<int:card_id>/toggle-freeze', methods=['POST'])
-@token_required
+@authorization_header_required
 def toggle_card_freeze(current_user, card_id):
+    """
+    FIXES:
+    - authorization header only to prevent CSRF 
+    """
+
     try:
         # Vulnerability: No CSRF protection
         # Vulnerability: BOLA - no verification if card belongs to user
@@ -1479,8 +1492,12 @@ def toggle_card_freeze(current_user, card_id):
         }), 500
 
 @app.route('/api/virtual-cards/<int:card_id>/transactions', methods=['GET'])
-@token_required
+@authorization_header_required
 def get_card_transactions(current_user, card_id):
+    """
+    FIXES:
+    - authorization header only to prevent CSRF 
+    """
     try:
         # Vulnerability: BOLA - no verification if card belongs to user
         # Vulnerability: SQL Injection possible
@@ -1516,8 +1533,12 @@ def get_card_transactions(current_user, card_id):
         }), 500
 
 @app.route('/api/virtual-cards/<int:card_id>/update-limit', methods=['POST'])
-@token_required
+@authorization_header_required
 def update_card_limit(current_user, card_id):
+    """
+    FIXES:
+    - authorization header only to prevent CSRF 
+    """
     try:
         data = request.get_json()
         
