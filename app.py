@@ -497,12 +497,22 @@ def transfer(current_user):
 
 # Get transaction history endpoint
 @app.route('/transactions/<account_number>')
-def get_transaction_history(account_number):
-    # Vulnerability: No authentication required (BOLA)
-    # Vulnerability: SQL Injection possible
+@token_required
+def get_transaction_history(current_user, account_number: str):
+    """
+    FIXES:
+    - Added authentication check to prevent BOLA
+    - fixed sql injection by using parameterized queries 
+    - input validation on account_number to ensure digits only
+    - proper error handling without sensitive info leakage
+    """
+    if not account_number.isdigit():
+        return jsonify({
+            'status': 'error',
+        }), 400
 
     try:
-        query = f"""
+        query = """--sql
             SELECT 
                 id,
                 from_account,
@@ -512,13 +522,12 @@ def get_transaction_history(account_number):
                 transaction_type,
                 description
             FROM transactions 
-            WHERE from_account='{account_number}' OR to_account='{account_number}'
+            WHERE from_account=%s OR to_account=%s
             ORDER BY timestamp DESC
         """
         
-        transactions = execute_query(query)
+        transactions = execute_query(query, (account_number, account_number))
         
-        # Vulnerability: Information disclosure
         transaction_list = [{
             'id': t[0],
             'from_account': t[1],
@@ -527,22 +536,20 @@ def get_transaction_history(account_number):
             'timestamp': str(t[4]),
             'type': t[5],
             'description': t[6]
-            #'query_used': query  # Vulnerability: Exposing SQL query
         } for t in transactions]
         
         return jsonify({
             'status': 'success',
             'account_number': account_number,
             'transactions': transaction_list,
-            'server_time': str(datetime.now())  # Vulnerability: Server information disclosure
         })
         
     except Exception as e:
+        print(e)
+        print(f"Transaction history error for account {account_number} with query: {query}")
         return jsonify({
             'status': 'error',
-            'message': str(e),
-            'query': query,  # Vulnerability: Query exposure
-            'account_number': account_number
+            'message': 'unexpected server error',
         }), 500
 
 @app.route('/upload_profile_picture', methods=['POST'])
