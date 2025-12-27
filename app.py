@@ -7,6 +7,7 @@ import time
 from collections import defaultdict
 from datetime import datetime, timedelta
 from functools import wraps
+from typing import Literal
 from urllib.parse import urlparse
 
 import requests
@@ -1652,6 +1653,7 @@ BILLS
 ############################################################################################################################################
 """
 
+# TODO fix
 @app.route('/api/bill-categories', methods=['GET'])
 def get_bill_categories():
     try:
@@ -1673,6 +1675,7 @@ def get_bill_categories():
             'message': str(e)  # Vulnerability: Detailed error exposure
         }), 500
 
+# TODO fix
 @app.route('/api/billers/by-category/<int:category_id>', methods=['GET'])
 def get_billers_by_category(category_id):
     try:
@@ -1703,32 +1706,63 @@ def get_billers_by_category(category_id):
         }), 500
 
 @app.route('/api/bill-payments/create', methods=['POST'])
-@token_required
+@authorization_header_required
 def create_bill_payment(current_user):
+    class BillPaymentFormModel(BaseModel):
+        """
+        Pydantic model for bill payment form data validation in the secure
+        /create endpoint.
+        """
+
+        amount: float
+        biller_id: int
+        payment_method: Literal["balance", "virtual_card"]
+        description: str | None = "Bill Payment"
+        card_id: int | None = None
+
+        # @field_validator("payment_method", mode="after")
+        # @classmethod
+        # def validate_payment_method(cls, v):
+        #     valid_methods = {"balance", "virtual_card"}
+        #     if v not in valid_methods:
+        #         raise ValueError(f"Payment method must be one of {valid_methods}")
+        #     return v
+
+        @field_validator("amount", mode="after")
+        @classmethod
+        def amount_must_be_positive(cls, v):
+            if v <= 0:
+                raise ValueError("Amount must be a positive number")
+            return v
+
+        @field_validator("description", mode="before")
+        @classmethod
+        def sanitize_description(cls, v):
+            print(f"Sanitizing description: {v}")
+            if v is not None:
+                clean_description = bleach.clean(v, tags=[], strip=True)
+                print(f"Sanitized description: {clean_description}")
+                return clean_description
+            return v
     try:
-        data = request.get_json()
-        
-        # Get required fields
-        biller_id = data.get('biller_id')
-        amount = float(data.get('amount'))
-        payment_method = data.get('payment_method')
-        card_id = data.get('card_id') if payment_method == 'virtual_card' else None
-        
-        # Vulnerability: No input validation
-        # Vulnerability: No amount validation
-        # Vulnerability: No payment method validation
-        
+        data = BillPaymentFormModel(**request.get_json())
+        biller_id = data.biller_id
+        amount = data.amount
+        payment_method = data.payment_method
+        description = data.description
+        card_id = data.card_id # validated to be int or None
+    
         if payment_method == 'virtual_card' and card_id:
-            # Vulnerability: BOLA - no verification if card belongs to user
-            # Vulnerability: SQL injection possible
-            card_query = f"""
+
+            card_query = """
                 SELECT current_balance, card_limit, is_frozen 
                 FROM virtual_cards 
-                WHERE id = {card_id}
+                WHERE id = %s AND user_id = %s 
             """
-            card = execute_query(card_query)[0]
+            card = execute_query(card_query, (card_id, current_user["user_id"],))[0]
             
-            if card[2]:  # is_frozen
+            card_is_frozen = card[2]
+            if card_is_frozen:
                 return jsonify({
                     'status': 'error',
                     'message': 'Card is frozen'
@@ -1741,13 +1775,11 @@ def create_bill_payment(current_user):
                 }), 400
                 
         elif payment_method == 'balance':
-            # Check user balance
-            # Vulnerability: Race condition possible
-            user_query = f"""
+            user_query = """--sql
                 SELECT balance FROM users
-                WHERE id = {current_user['user_id']}
+                WHERE id = %s
             """
-            user_balance = float(execute_query(user_query)[0][0])
+            user_balance = float(execute_query(user_query, (current_user['user_id'],))[0][0])
             
             if amount > user_balance:
                 return jsonify({
@@ -1756,7 +1788,7 @@ def create_bill_payment(current_user):
                 }), 400
         
         # Generate reference number
-        reference = f"BILL{int(time.time())}"  # Vulnerability: Predictable reference numbers
+        reference = f"BILL{int(time.time())}"  # Vulnerability: Predictable reference numbers # ignored for our project
         
         # Create payment record
         queries = []
@@ -1775,7 +1807,7 @@ def create_bill_payment(current_user):
             payment_method,
             card_id,
             reference,
-            data.get('description', 'Bill Payment')
+            description
         )
         queries.append((payment_query, payment_values))
         
