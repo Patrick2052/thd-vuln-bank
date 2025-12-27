@@ -1851,12 +1851,12 @@ def create_bill_payment(current_user):
         }), 500
 
 @app.route('/api/bill-payments/history', methods=['GET'])
-@token_required
+@authorization_header_required
 def get_payment_history(current_user):
     try:
-        # Vulnerability: No pagination
+        user_id = current_user['user_id']
         # Vulnerability: SQL injection possible
-        query = f"""
+        query = """--sql
             SELECT 
                 bp.*,
                 b.name as biller_name,
@@ -1866,13 +1866,12 @@ def get_payment_history(current_user):
             JOIN billers b ON bp.biller_id = b.id
             JOIN bill_categories bc ON b.category_id = bc.id
             LEFT JOIN virtual_cards vc ON bp.card_id = vc.id
-            WHERE bp.user_id = {current_user['user_id']}
+            WHERE bp.user_id = %s 
             ORDER BY bp.created_at DESC
         """
         
-        payments = execute_query(query)
+        payments = execute_query(query, (user_id,))
         
-        # Vulnerability: Excessive data exposure
         return jsonify({
             'status': 'success',
             'payments': [{
