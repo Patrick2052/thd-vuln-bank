@@ -12,6 +12,28 @@ JWT_SECRET = "secret123"
 # Vulnerable algorithm selection - allows 'none' algorithm
 ALGORITHMS = ['HS256', 'none']
 
+def check_password_strength(password):
+    """
+    Check password strength
+    https://www.bsi.bund.de/EN/Themen/Verbraucherinnen-und-Verbraucher/Informationen-und-Empfehlungen/Cyber-Sicherheitsempfehlungen/Accountschutz/Sichere-Passwoerter-erstellen/sichere-passwoerter-erstellen_node.html
+    """
+
+    message="Password does not meet security guidelines: minimum 8 characters, at least one uppercase letter, one lowercase letter, one digit, and one special character"
+
+    checks = [
+        len(password) >= 8,
+        any(c.islower() for c in password),
+        any(c.isupper() for c in password),
+        any(c.isdigit() for c in password),
+        any(c in '!@#$%^&*()-_=+[]{}|;:,.<>?/' for c in password)
+    ]
+    if not all(checks):
+        print(message)
+        return False
+    return True
+
+
+
 def generate_token(user_id, username, is_admin=False):
     """
     Generate a JWT token with weak implementation

@@ -7,7 +7,7 @@ import os
 from dotenv import load_dotenv
 from pydantic import BaseModel, field_validator
 from pydantic_core import ValidationError
-from auth import generate_token, token_required, verify_token, init_auth_routes
+from auth import check_password_strength, generate_token, token_required, verify_token, init_auth_routes
 import auth
 from werkzeug.utils import secure_filename 
 from flask_swagger_ui import get_swaggerui_blueprint
@@ -320,7 +320,7 @@ def login():
             ), 500    # if not post request return this
     return render_template('login.html')
     
-
+# FIX debug route removed
 # @app.route('/debug/users')
 # def debug_users():
 #     users = execute_query("SELECT id, username, password, account_number, is_admin FROM users")
@@ -382,7 +382,7 @@ def check_balance(current_user, account_number:str):
 
     try:
         user = execute_query(
-            f"SELECT username, balance FROM users WHERE user_id=%s AND account_number=%s",
+            "SELECT username, balance FROM users WHERE user_id=%s AND account_number=%s",
             (current_user['user_id'], account_number,)
         )
         
@@ -957,6 +957,8 @@ def approve_loan(current_user, loan_id):
             'loan_id': loan_id
         }), 500
 
+
+# TODO: FIX
 # Delete account endpoint
 @app.route('/admin/delete_account/<int:user_id>', methods=['POST'])
 @token_required
@@ -991,6 +993,8 @@ def delete_account(current_user, user_id):
             'message': str(e)
         }), 500
 
+
+# TODO: fix
 # Create admin endpoint
 @app.route('/admin/create_admin', methods=['POST'])
 @token_required
@@ -1025,24 +1029,34 @@ def create_admin(current_user):
         }), 500
 
 
+# TODO: username enumeration in paper??
 # Forgot password endpoint
 @app.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
+    """
+    FIXES:
+    - Input validation for username
+    - Sql Injection prevention with parameterized queries
+    - INCREASED RESET PIN COMPLEXITY # TODO check if include in paper
+    """
+    class ForgotPasswordRequestBody(BaseModel):
+        username: str
+
     if request.method == 'POST':
         try:
-            data = request.get_json()  # Changed to get_json()
+            data = ForgotPasswordRequestBody(**request.get_json())
             username = data.get('username')
             
-            # Vulnerability: SQL Injection possible
             user = execute_query(
-                f"SELECT id FROM users WHERE username='{username}'"
+                "SELECT id FROM users WHERE username=%s",
+                (username,)
             )
             
             if user:
-                # Weak reset pin logic (CWE-330)
-                # Using only 3 digits makes it easily guessable
-                reset_pin = str(random.randint(100, 999))
-                
+                # fix: increased reset pin complexity (CWE-330)
+                reset_pin = str(random.randint(100000, 999999))
+
+                # TODO either fix or put in paper as outlook    
                 # Store the reset PIN in database (in plaintext - CWE-319)
                 execute_query(
                     "UPDATE users SET reset_pin = %s WHERE username = %s",
@@ -1050,51 +1064,52 @@ def forgot_password():
                     fetch=False
                 )
                 
-                # Vulnerability: Information disclosure
                 return jsonify({
                     'status': 'success',
                     'message': 'Reset PIN has been sent to your email.',
-                    'debug_info': {  # Vulnerability: Information disclosure
-                        'timestamp': str(datetime.now()),
-                        'username': username,
-                        'pin_length': len(reset_pin),
-                        'pin': reset_pin  # Intentionally exposing pin for learning
-                    }
                 })
+            # on fail return success to prevent username enumeration
             else:
-                # Vulnerability: Username enumeration
                 return jsonify({
-                    'status': 'error',
-                    'message': 'User not found'
-                }), 404
+                    'status': 'code sent to email if the username exists',
+                }), 200
                 
         except Exception as e:
             print(f"Forgot password error: {str(e)}")
             return jsonify({
                 'status': 'error',
-                'message': str(e)
             }), 500
             
     return render_template('forgot_password.html')
 
-# Reset password endpoint
+# TODO add rate limiting or put in paper as outlook
 @app.route('/reset-password', methods=['GET', 'POST'])
 def reset_password():
+    """
+    FIXES:
+    - Input validation for all fields
+    - Password strength check 
+    """
+    class ResetPasswordRequestBody(BaseModel):
+        username: str
+        reset_pin: str
+        new_password: str
+
     if request.method == 'POST':
         try:
-            data = request.get_json()
-            username = data.get('username')
-            reset_pin = data.get('reset_pin')
-            new_password = data.get('new_password')
+            data = ResetPasswordRequestBody(**request.get_json())
+            username = data.username
+            reset_pin = data.reset_pin
+            new_password = data.new_password
             
-            # Vulnerability: No rate limiting on PIN attempts
-            # Vulnerability: Timing attack possible in PIN verification
+            # TODO Vulnerability: No rate limiting on PIN attempts
+            # TODO Vulnerability: Timing attack possible in PIN verification
             user = execute_query(
                 "SELECT id FROM users WHERE username = %s AND reset_pin = %s",
                 (username, reset_pin)
             )
             
-            if user:
+            if user and check_password_strength(new_password):
                 # Vulnerability: No password complexity requirements
                 # Vulnerability: No password history check
                 execute_query(
@@ -1108,19 +1123,17 @@ def reset_password():
                     'message': 'Password has been reset successfully'
                 })
             else:
-                # Vulnerability: Username enumeration possible
+                # TODO Vulnerability: Username enumeration possible
                 return jsonify({
                     'status': 'error',
-                    'message': 'Invalid reset PIN'
+                    'message': 'could not reset password'
                 }), 400
                 
         except Exception as e:
-            # Vulnerability: Detailed error exposure
             print(f"Reset password error: {str(e)}")
             return jsonify({
                 'status': 'error',
                 'message': 'Password reset failed',
-                'error': str(e)
             }), 500
             
     return render_template('reset_password.html')
