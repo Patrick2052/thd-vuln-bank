@@ -1232,109 +1232,60 @@ def api_v2_forgot_password():
         }), 500
 
 # V1 API for reset password
-@app.route('/api/v1/reset-password', methods=['POST'])
+@app.route('/api/v2/reset-password', methods=['POST'])
 def api_v1_reset_password():
+    """
+    FIXES:
+    - Username enumeration mitigation by checking password strength first
+    - Always return success message after password validation
+    - Input validation for all fields
+    - Sensitive info leakage mitigated
+    """
+    class ResetPasswordRequestBody(BaseModel):
+        username: str
+        reset_pin: str
+        new_password: str
+
     try:
-        data = request.get_json()
-        username = data.get('username')
-        reset_pin = data.get('reset_pin')
-        new_password = data.get('new_password')
-        
-        # Vulnerability: No rate limiting on PIN attempts
-        # Vulnerability: Timing attack possible in PIN verification
+        data = ResetPasswordRequestBody(**request.get_json())
+        username = data.username
+        reset_pin = data.reset_pin
+        new_password = data.new_password
+
+        if not check_password_strength(new_password):
+            return jsonify({
+                'status': 'error',
+                'message': 'Password does not meet strength requirements',
+            }), 400
+
+        # TODO Vulnerability: No rate limiting on PIN attempts
+        # TODO Vulnerability: Timing attack possible in PIN verification
         user = execute_query(
             "SELECT id FROM users WHERE username = %s AND reset_pin = %s",
             (username, reset_pin)
         )
         
         if user:
-            # Vulnerability: No password complexity requirements
-            # Vulnerability: No password history check
+            # TODO in outlook: Vulnerability: No password history check
             execute_query(
                 "UPDATE users SET password = %s, reset_pin = NULL WHERE username = %s",
                 (new_password, username),
                 fetch=False
             )
-            
-            return jsonify({
-                'status': 'success',
-                'message': 'Password has been reset successfully',
-                'debug_info': {  # Additional debug info for v1
-                    'timestamp': str(datetime.now()),
-                    'username': username,
-                    'reset_success': True,
-                    'reset_pin_used': reset_pin  # Intentionally exposing used pin
-                }
-            })
-        else:
-            # Vulnerability: Username enumeration possible
-            return jsonify({
-                'status': 'error',
-                'message': 'Invalid reset PIN',
-                'debug_info': {  # Additional debug info for v1
-                    'timestamp': str(datetime.now()),
-                    'username': username,
-                    'reset_success': False,
-                    'attempted_pin': reset_pin  # Exposing attempted pin
-                }
-            }), 400
+        
+        # FIX: Always return success message to prevent username enumeration
+        return jsonify({
+            'status': 'success',
+            'message': 'If the reset PIN was valid, your password has been reset successfully',
+        }), 200
                 
     except Exception as e:
-        # Vulnerability: Detailed error exposure
         print(f"Reset password error: {str(e)}")
         return jsonify({
             'status': 'error',
-            'message': 'Password reset failed',
-            'error': str(e)
+            'message': 'internal server errror',
         }), 500
 
-# V2 API for reset password
-@app.route('/api/v2/reset-password', methods=['POST'])
-def api_v2_reset_password():
-    try:
-        data = request.get_json()
-        username = data.get('username')
-        reset_pin = data.get('reset_pin')
-        new_password = data.get('new_password')
-        
-        # Vulnerability: No rate limiting on PIN attempts
-        # Vulnerability: Timing attack possible in PIN verification
-        user = execute_query(
-            "SELECT id FROM users WHERE username = %s AND reset_pin = %s",
-            (username, reset_pin)
-        )
-        
-        if user:
-            # Vulnerability: No password complexity requirements
-            # Vulnerability: No password history check
-            execute_query(
-                "UPDATE users SET password = %s, reset_pin = NULL WHERE username = %s",
-                (new_password, username),
-                fetch=False
-            )
-            
-            # Fixed: Less excessive data exposure
-            return jsonify({
-                'status': 'success',
-                'message': 'Password has been reset successfully'
-                # Debug info removed in v2
-            })
-        else:
-            # Vulnerability: Username enumeration still possible
-            return jsonify({
-                'status': 'error',
-                'message': 'Invalid reset PIN'
-                # Debug info removed in v2
-            }), 400
-                
-    except Exception as e:
-        # Vulnerability: Still exposing error details but less verbose
-        print(f"Reset password error: {str(e)}")
-        return jsonify({
-            'status': 'error',
-            'message': 'Password reset failed'
-            # Detailed error removed in v2
-        }), 500
 
 @app.route('/api/transactions', methods=['GET'])
 @token_required
