@@ -7,7 +7,7 @@ import os
 from dotenv import load_dotenv
 from pydantic import BaseModel, field_validator
 from pydantic_core import ValidationError
-from auth import check_password_strength, generate_token, token_required, verify_token, init_auth_routes
+from auth import authorization_header_required, check_password_strength, generate_token, token_required, verify_token, init_auth_routes
 import auth
 from werkzeug.utils import secure_filename 
 from flask_swagger_ui import get_swaggerui_blueprint
@@ -1288,23 +1288,51 @@ def api_v1_reset_password():
 
 
 @app.route('/api/transactions', methods=['GET'])
-@token_required
+@authorization_header_required # FIX: use authorization header to prevent csrf
 def api_transactions(current_user):
-    # Vulnerability: No validation of account_number parameter
-    account_number = request.args.get('account_number')
-    
-    if not account_number:
-        return jsonify({'error': 'Account number required'}), 400
-        
-    # Vulnerability: SQL Injection
-    query = f"""
+    """
+    FIXES:
+    - Input validation for account_number
+    - SQL Injection prevention with parameterized queries 
+    - Added authentication check to prevent BOLA
+    - Use authorization header only in api route to prevent CSRF
+    """
+    class TransactionsRequestParams(BaseModel):
+        account_number: str
+
+        @field_validator('account_number', mode='after')
+        @classmethod
+        def account_number_must_be_digits(cls, v):
+            if not v.isdigit():
+                raise ValueError('Account number must be digits only')
+            return v
+    try:
+
+        params = TransactionsRequestParams(**request.args)
+        account_number = params.account_number
+    except ValidationError:
+        return jsonify({'error': 'Invalid account number'}), 400
+
+    # Verify the account belongs to the current user
+    user_account = execute_query(
+        "SELECT account_number FROM users WHERE id = %s",
+        (current_user['user_id'],)
+    )
+
+    if not user_account or user_account[0][0] != account_number:
+        return jsonify({
+            'status': 'error',
+            'message': 'Unauthorized access to account'
+        }), 403
+
+    query = """
         SELECT * FROM transactions 
-        WHERE from_account='{account_number}' OR to_account='{account_number}'
+        WHERE from_account=%s OR to_account=%s
         ORDER BY timestamp DESC
     """
     
     try:
-        transactions = execute_query(query)
+        transactions = execute_query(query, (account_number, account_number))
         
         # Convert Decimal objects to float for JSON serialization
         transaction_list = []
