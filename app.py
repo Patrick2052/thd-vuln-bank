@@ -43,10 +43,14 @@ from validators import RegisterFormModel, TransferFormModel
 # Load environment variables
 load_dotenv()
 
+SECRET_KEY = os.getenv('SECRET_KEY', None)
+if SECRET_KEY is None:
+    raise Exception("SECRET_KEY environment variable not set")
+
 # Initialize Flask app
 app = Flask(__name__)
 CORS(app)
-# TODO implement flask csrf protection
+# TODO implement full flask csrf protection
 csrf = CSRFProtect(app)
 
 
@@ -67,8 +71,8 @@ swaggerui_blueprint = get_swaggerui_blueprint(
 
 app.register_blueprint(swaggerui_blueprint, url_prefix=SWAGGER_URL)
 
-# Hardcoded secret key (CWE-798)
-app.secret_key = "secret123"
+# FIXED Hardcoded secret key (CWE-798)
+app.secret_key = SECRET_KEY
 
 # Rate limiting configuration
 RATE_LIMIT_WINDOW = 3 * 60 * 60  # 3 hours in seconds
