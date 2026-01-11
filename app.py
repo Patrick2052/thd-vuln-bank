@@ -1104,7 +1104,7 @@ def api_transactions(current_user):
         @field_validator('account_number', mode='after')
         @classmethod
         def account_number_must_be_digits(cls, v):
-            if not v.isdigit():
+            if not v.isdigit() or v == 'ADMIN001':
                 raise ValueError('Account number must be digits only')
             return v
     try:
