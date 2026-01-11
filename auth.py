@@ -93,15 +93,6 @@ def token_required(f):
             except IndexError:
                 token = None
                 
-        # Vulnerability: Multiple token locations (token hijacking risk)
-        # Also check query parameters (vulnerable by design)
-        if not token and 'token' in request.args:
-            token = request.args['token']
-            
-        # Also check form data (vulnerable by design)
-        if not token and 'token' in request.form:
-            token = request.form['token']
-            
         # Also check cookies (vulnerable by design)
         if not token and 'token' in request.cookies:
             token = request.cookies['token']
