@@ -3,6 +3,7 @@ import psycopg2
 from psycopg2 import pool
 from datetime import datetime
 import time
+from password import hash_password
 
 # Vulnerable database configuration
 # CWE-259: Use of Hard-coded Password
@@ -163,7 +164,7 @@ def init_db():
                     INSERT INTO users (username, password, account_number, balance, is_admin) 
                     VALUES (%s, %s, %s, %s, %s)
                     """,
-                    ('admin', 'admin123', 'ADMIN001', 1000000.0, True)
+                    ('admin', hash_password('admin123'), 'ADMIN001', 1000000.0, True)
                 )
             
             # Create bill categories table
