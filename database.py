@@ -54,12 +54,36 @@ def return_connection(connection):
     if connection_pool:
         connection_pool.putconn(connection)
 
+def reset_db():
+
+    init_connection_pool()
+    conn = get_connection()
+
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute("DROP TABLE IF EXISTS bill_payments CASCADE")
+            cursor.execute("DROP TABLE IF EXISTS billers CASCADE")
+            cursor.execute("DROP TABLE IF EXISTS bill_categories CASCADE")
+            cursor.execute("DROP TABLE IF EXISTS card_transactions CASCADE")
+            cursor.execute("DROP TABLE IF EXISTS virtual_cards CASCADE")
+            cursor.execute("DROP TABLE IF EXISTS transactions CASCADE")
+            cursor.execute("DROP TABLE IF EXISTS loans CASCADE")
+            cursor.execute("DROP TABLE IF EXISTS users CASCADE")
+            conn.commit()
+        init_db()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        return_connection(conn)
+
 def init_db():
     """
     Initialize database tables
     Multiple vulnerabilities present for learning purposes
     """
     conn = get_connection()
+
     try:
         with conn.cursor() as cursor:
             # Create users table
@@ -67,12 +91,12 @@ def init_db():
                 CREATE TABLE IF NOT EXISTS users (
                     id SERIAL PRIMARY KEY,
                     username TEXT NOT NULL UNIQUE,
-                    password TEXT NOT NULL,  -- Vulnerability: Passwords stored in plaintext
+                    password BYTEA NOT NULL,  -- FIX: Passwords now stored as bcrypt hashes (binary)
                     account_number TEXT NOT NULL UNIQUE,
                     balance DECIMAL(15, 2) DEFAULT 1000.0,
                     is_admin BOOLEAN DEFAULT FALSE,
                     profile_picture TEXT,
-                    reset_pin TEXT  -- Vulnerability: Reset PINs stored in plaintext
+                    reset_pin TEXT  -- Vulnerability: Reset PINs stored in plaintext # TODO document
                 )
             ''')
             

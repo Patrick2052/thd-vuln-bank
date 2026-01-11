@@ -9,7 +9,8 @@ from datetime import datetime, timedelta
 from functools import wraps
 from typing import Literal
 from urllib.parse import urlparse
-
+from utils import generate_card_number, generate_cvv
+from password import verify_password, hash_password
 import requests
 from dotenv import load_dotenv
 from flask import (
@@ -206,15 +207,6 @@ if not os.path.exists(UPLOAD_FOLDER):
 def generate_account_number():
     return ''.join(random.choices(string.digits, k=10))
 
-def generate_card_number():
-    """Generate a 16-digit card number"""
-    # Vulnerability: Predictable card number generation
-    return ''.join(random.choices(string.digits, k=16))
-
-def generate_cvv():
-    """Generate a 3-digit CVV"""
-    # Vulnerability: Predictable CVV generation
-    return ''.join(random.choices(string.digits, k=3))
 
 @app.route('/')
 def index():
@@ -222,6 +214,7 @@ def index():
 
 
 @app.route('/register', methods=['GET', 'POST'])
+@csrf.exempt
 def register():
     """
     FIXES:
@@ -248,8 +241,10 @@ def register():
                     'status': 'error',
                     'message': 'Username already exists',
                 }), 400
-            
-            values = [user_input.username, user_input.password, account_number]
+
+            print(f"Registering user: {user_input.username} with pw: {user_input.password}")
+            hashed_password = hash_password(user_input.password)
+            values = [user_input.username, hashed_password, account_number]
             query = """
                 INSERT INTO users (username, password, account_number)
                 VALUES (%s, %s, %s)
@@ -268,7 +263,13 @@ def register():
             response = jsonify(response)
             
             return response
-                
+        except ValidationError as ve:
+            print(f"Registration -- Validation error: {ve.errors()}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Invalid username or password',
+            }), 400
+
         except Exception as e:
             print(f"Registration error: {str(e)}") # only internal logging
             return jsonify({
@@ -280,6 +281,7 @@ def register():
 
 
 @app.route('/login', methods=['GET', 'POST'])
+@csrf.exempt
 def login():
     """
     FIXES:
@@ -298,15 +300,22 @@ def login():
             username = data.username
             password = data.password
 
-            # TODO match password hashes^
-            query = "SELECT * FROM users WHERE username=%s AND password=%s"
-
-            user = execute_query(query, params=(username, password))
-            print(f"Debug - Query result: {user}")  # Debug print
+            user = execute_query("SELECT * FROM USERS WHERE USERNAME=%s", params=(username,))
 
             if user and len(user) > 0:
-                user = user[0]  # Get first row
-                print(f"Debug - Found user: {user}")  # Debug print
+                user = user[0] 
+                password_hash = user[2]
+                if not verify_password(password, bytes(password_hash) ):
+                    # TODO? Timing attack because of the different code paths?
+                    return jsonify(
+                        {
+                            "status": "error",
+                            "message": "Invalid credentials",
+                            "debug_info": { # FIX no information disclosure of username
+                                "time": str(datetime.now()),
+                            },
+                        }
+                    ), 401
 
                 # Generate JWT token instead of using session
                 token = generate_token(user[0], user[1], user[5])
@@ -338,13 +347,14 @@ def login():
             ), 401
 
         except Exception as e:
-            print(f"Login error: {str(e)}") # print internally instead of returning
+            raise
             return jsonify(
                 {"status": "error", "message": "Login failed"}
             ), 500    # if not post request return this
+
     return render_template('login.html')
     
-# FIX debug route removed
+# ! FIX debug route removed
 # @app.route('/debug/users')
 # def debug_users():
 #     users = execute_query("SELECT id, username, password, account_number, is_admin FROM users")
@@ -1700,6 +1710,7 @@ def get_billers_by_category(category_id):
             } for b in billers]
         })
     except Exception as e:
+        print(f"Get billers error: {str(e)}")
         return jsonify({
             'status': 'error',
             'message': str(e)
@@ -2134,4 +2145,4 @@ if __name__ == '__main__':
     init_db()
     init_auth_routes(app)
     # Vulnerability: Debug mode enabled in production
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(port=5000, debug=True)

@@ -10,3 +10,4 @@ pydantic
 pydantic-settings
 bleach
 Flask-WTF==1.2.2
+bcrypt==5.0.0
