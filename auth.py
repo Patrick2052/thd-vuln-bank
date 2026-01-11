@@ -3,11 +3,12 @@ import jwt
 import datetime
 import sqlite3  
 from functools import wraps
+from datetime import datetime
+from database import execute_query
+from password import verify_password 
+from pydantic import BaseModel
 from config import settings
 
-# Vulnerable JWT implementation with common security issues
-
-# Weak secret key (CWE-326)
 ALGORITHMS = ['HS256']
 
 def check_password_strength(password):
@@ -46,7 +47,6 @@ def generate_token(user_id, username, is_admin=False):
         'iat': now
     }
     
-    # Vulnerability: Using a weak secret key
     token = jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm='HS256')
     return token
 
@@ -154,43 +154,64 @@ def authorization_header_required(f):
 
 # New API endpoints with JWT authentication
 def init_auth_routes(app):
+
     @app.route('/api/login', methods=['POST'])
     def api_login():
-        auth = request.get_json()
-        
-        if not auth or not auth.get('username') or not auth.get('password'):
-            return jsonify({'error': 'Missing credentials'}), 401
+
+        class LoginRequestBody(BaseModel):
+            username: str
+            password: str
+
+        try:
+            data = LoginRequestBody(**request.get_json())
+            username = data.username
+            password = data.password
+
+            user = execute_query("SELECT * FROM USERS WHERE USERNAME=%s", params=(username,))
+
+            if user and len(user) > 0:
+                user = user[0] 
+                password_hash = user[2]
+                if not verify_password(password, bytes(password_hash) ):
+                    # TODO? Timing attack because of the different code paths?
+                    return jsonify(
+                        {
+                            "status": "error",
+                            "message": "Invalid credentials",
+                            "debug_info": { # FIX no information disclosure of username
+                                "time": str(datetime.now()),
+                            },
+                        }
+                    ), 401
+
+                token = generate_token(user[0], user[1], user[5])
+                print(f"Debug - Generated token: {token}")  # Debug print
+
+                return jsonify({
+                    'token': token,
+                    'user_id': user[0],
+                    'username': user[1],
+                })
             
-        # Vulnerability: SQL Injection still possible here
-        conn = sqlite3.connect('bank.db')
-        c = conn.cursor()
-        query = f"SELECT * FROM users WHERE username='{auth.get('username')}' AND password='{auth.get('password')}'"
-        c.execute(query)
-        user = c.fetchone()
-        conn.close()
-        
-        if not user:
-            return jsonify({'error': 'Invalid credentials'}), 401
-            
-        # Generate token
-        token = generate_token(user[0], user[1], user[5])
-        
-        # Vulnerability: Exposed sensitive data in response
-        return jsonify({
-            'token': token,
-            'user_id': user[0],
-            'username': user[1],
-            'account_number': user[3],
-            'is_admin': user[5],
-            'debug_info': {
-                'login_time': str(datetime.datetime.now()),
-                'ip_address': request.remote_addr,
-                'user_agent': request.headers.get('User-Agent')
-            }
-        })
+            return jsonify(
+                {
+                    "status": "error",
+                    "message": "Invalid credentials",
+                    "debug_info": { # FIX no information disclosure of username
+                        "time": str(datetime.now()),
+                    },
+                }
+            ), 401
+
+        except Exception as e:
+            print(f"Login error: {str(e)}")  # Debug print
+            return jsonify(
+                {"status": "error", "message": "Login failed"}
+            ), 500    # if not post request return this
+
 
     @app.route('/api/check_balance', methods=['GET'])
-    @token_required
+    @authorization_header_required
     def api_check_balance(current_user):
         # Vulnerability: No additional authorization check
         # Any valid token can check any account balance
@@ -211,7 +232,7 @@ def init_auth_routes(app):
         return jsonify({'error': 'Account not found'}), 404
 
     @app.route('/api/transfer', methods=['POST'])
-    @token_required
+    @authorization_header_required
     def api_transfer(current_user):
         data = request.get_json()
         
