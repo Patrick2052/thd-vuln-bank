@@ -72,14 +72,20 @@ def ai_rate_limit(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         client_ip = get_client_ip()
-        
-        # Check if this is an authenticated request
-        auth_header = request.headers.get('Authorization')
-        if auth_header and auth_header.startswith('Bearer '):
-            # Extract token and get user info
-            token = auth_header.split(' ')[1]
+
+        token = request.cookies.get('token')
+        if not token:
+            auth_header = request.headers.get('Authorization')
+            if auth_header and auth_header.startswith('Bearer '):
+                token = auth_header.split(' ')[1]
+        user_data = None
+        if token:
             try:
                 user_data = verify_token(token)
+            except:
+                user_data = None
+
+            try:
                 if user_data:
                     # Authenticated mode: rate limit by both user and IP
                     user_key = f"ai_auth_user_{user_data['user_id']}"
@@ -123,7 +129,8 @@ def ai_rate_limit(f):
                     return f(*args, **kwargs)
             except:
                 pass  # Fall through to unauthenticated handling
-        
+
+
         # Unauthenticated mode: rate limit by IP only
         ip_key = f"ai_unauth_ip_{client_ip}"
         ip_allowed, ip_count, ip_limit = check_rate_limit(ip_key, UNAUTHENTICATED_LIMIT)
