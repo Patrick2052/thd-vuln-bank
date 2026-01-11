@@ -40,7 +40,7 @@ from auth import (
 )
 from database import execute_query, execute_transaction, init_connection_pool, init_db
 from validators import RegisterFormModel, TransferFormModel
-from rate_limiter import ai_rate_limit, get_rate_limit_status
+from rate_limiter import AUTHENTICATED_LIMIT, RATE_LIMIT_WINDOW, UNAUTHENTICATED_LIMIT, ai_rate_limit, get_rate_limit_status
 from config import settings
 
 # Load environment variables
