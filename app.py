@@ -200,14 +200,12 @@ def login():
                         {
                             "status": "success",
                             "message": "Login successful",
-                            "token": token,
                             "accountNumber": user[3],
                         }
                     )
                 )
 
-                # FIX: cookies is secure and samesite strict only (limit csrf); secure = send only over https
-                response.set_cookie("token", token, httponly=True, secure=True, samesite="strict")
+                response.set_cookie("token", token, httponly=True, secure=True, samesite="strict", max_age=60*60*24, )
                 return response
 
             return jsonify(
