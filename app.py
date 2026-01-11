@@ -228,6 +228,27 @@ def login():
 
     return render_template('login.html')
 
+@app.route('/logout', methods=['POST'])
+@csrf.exempt
+@token_required
+def logout(current_user):
+    """
+    FIXES:
+    - Invalidate JWT token on logout (handled client-side by deleting token)
+    - Clear secure cookies
+    """
+    response = make_response(
+        jsonify(
+            {
+                "status": "success",
+                "message": "Logout successful",
+            }
+        )
+    )
+    # Clear the token cookie
+    response.set_cookie("token", "", expires=0, httponly=True, secure=True, samesite="strict")
+    return response
+
 
 
 @app.route('/auth/status', methods=['GET'])

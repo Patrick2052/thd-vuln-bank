@@ -50,17 +50,14 @@
                     const data = await response.json();
                     
                     if (data.status === 'success' && data.token) {
-                        // Vulnerability: Token stored in localStorage (intentionally vulnerable)
-                        localStorage.setItem('jwt_token', data.token);
                         window.location.href = '/dashboard';
                     } else {
-                        // Vulnerability: innerHTML used instead of textContent
-                        document.getElementById('message').innerHTML = data.message || 'Login failed';
+                        document.getElementById('message').textContent = data.message || 'Login failed';
                         document.getElementById('message').style.color = 'red';
                         document.getElementById('message').className = 'error';
                     }
                 } catch (error) {
-                    document.getElementById('message').innerHTML = 'Login failed. Please try again.';
+                    document.getElementById('message').textContent = 'Login failed. Please try again.';
                     document.getElementById('message').style.color = 'red';
                     document.getElementById('message').className = 'error';
                 }

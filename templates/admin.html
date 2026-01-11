@@ -114,13 +114,16 @@
     </div>
 
     <script>
+        function getCSRFToken() {
+            return document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        }
         // Vulnerability: Token stored in localStorage
         document.addEventListener('DOMContentLoaded', function() {
-            const token = localStorage.getItem('jwt_token');
-            if (!token) {
-                window.location.href = '/login';
-                return;
-            }
+            // const token = localStorage.getItem('jwt_token');
+            // if (!token) {
+            //     window.location.href = '/login';
+            //     return;
+            // }
 
             // Add event listeners
             document.querySelectorAll('.delete-account-form').forEach(form => {
@@ -142,7 +145,7 @@
                 const response = await fetch(`/admin/delete_account/${userId}`, {
                     method: 'POST',
                     headers: {
-                        'Authorization': 'Bearer ' + localStorage.getItem('jwt_token'),
+                        'X-CSRFToken': getCSRFToken(),
                         'Content-Type': 'application/json'
                     }
                 });
@@ -174,7 +177,7 @@
                 const response = await fetch(`/admin/approve_loan/${loanId}`, {
                     method: 'POST',
                     headers: {
-                        'Authorization': 'Bearer ' + localStorage.getItem('jwt_token'),
+                        'X-CSRFToken': getCSRFToken(),
                         'Content-Type': 'application/json'
                     }
                 });
@@ -209,7 +212,7 @@
                 const response = await fetch('/admin/create_admin', {
                     method: 'POST',
                     headers: {
-                        'Authorization': 'Bearer ' + localStorage.getItem('jwt_token'),
+                        'X-CSRFToken': getCSRFToken(),
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify(jsonData)
