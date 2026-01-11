@@ -38,7 +38,7 @@ def generate_token(user_id, username, is_admin=False):
     Generate a JWT token with weak implementation
     Vulnerability: No token expiration (CWE-613)
     """
-    now = int(datetime.datetime.now().timestamp())
+    now = int(datetime.now().timestamp())
     payload = {
         'user_id': user_id,
         'username': username,
