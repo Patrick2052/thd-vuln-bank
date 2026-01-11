@@ -817,6 +817,8 @@ def delete_account(current_user, user_id):
         return jsonify({'error': 'Access Denied'}), 403
     
     try:
+        # TODO document in paper
+        # ! This is out of scope for the project
         # Vulnerability: No user confirmation required
         # Vulnerability: No audit logging
         # Vulnerability: No backup creation
@@ -830,8 +832,6 @@ def delete_account(current_user, user_id):
             'status': 'success',
             'message': 'Account deleted successfully',
             'debug_info': {
-                'deleted_user_id': user_id,
-                'deleted_by': current_user['username'],
                 'timestamp': str(datetime.now())
             }
         })
@@ -840,7 +840,6 @@ def delete_account(current_user, user_id):
         print(f"Delete account error: {str(e)}")
         return jsonify({
             'status': 'error',
-            'message': str(e)
         }), 500
 
 
@@ -858,11 +857,14 @@ def create_admin(current_user):
         password = data.get('password')
         account_number = generate_account_number()
         
-        # Vulnerability: SQL injection possible
-        # Vulnerability: No password complexity requirements
-        # Vulnerability: No account number uniqueness check
+        query = """
+            INSERT INTO users 
+            (username, password, account_number, is_admin) 
+            VALUES (%s, %s, %s, %s)
+        """
         execute_query(
-            f"INSERT INTO users (username, password, account_number, is_admin) VALUES ('{username}', '{password}', '{account_number}', true)",
+            query,
+            (username, password, account_number, True),
             fetch=False
         )
         
@@ -875,7 +877,6 @@ def create_admin(current_user):
         print(f"Create admin error: {str(e)}")
         return jsonify({
             'status': 'error',
-            'message': str(e)
         }), 500
 
 
