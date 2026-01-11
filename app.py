@@ -447,9 +447,9 @@ def get_transaction_history(current_user, account_number: str):
     - input validation on account_number to ensure digits only
     - proper error handling without sensitive info leakage
     """
-    if not account_number.isdigit():
+    if not account_number:
         return jsonify({
-            'status': 'error',
+            'status': 'account number missing',
         }), 400
 
     try:
@@ -984,7 +984,7 @@ def reset_password():
         except Exception as e:
             print(f"Reset password error: {str(e)}")
             return jsonify({
-                'status': 'error',
+                'status': '. rror',
                 'message': 'Password reset failed',
             }), 500
             
@@ -1089,7 +1089,7 @@ def api_v1_reset_password():
 
 
 @app.route('/api/transactions', methods=['GET'])
-@token_required # FIX: use authorization header to prevent csrf
+@token_required 
 def api_transactions(current_user):
     """
     FIXES:
@@ -1108,7 +1108,6 @@ def api_transactions(current_user):
                 raise ValueError('Account number must be digits only')
             return v
     try:
-
         params = TransactionsRequestParams(**request.args)
         account_number = params.account_number
     except ValidationError:
@@ -1154,7 +1153,8 @@ def api_transactions(current_user):
         })
         
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print(f"API transactions error: {str(e)}")
+        return jsonify({'status': 'error'}), 500
 
 
 """

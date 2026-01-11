@@ -1,7 +1,7 @@
-function getCSRFToken() {
-    return document.querySelector('meta[name="csrf-token"]').value;
-}
 
+    function getCSRFToken() {
+        return document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    }
 
 // Set current date
 
@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 document.addEventListener('DOMContentLoaded', function() {
-    fetchTransactions();
+    fetchTransactions(getCSRFToken());
 
     // Add event listeners
     document.getElementById('transferForm').addEventListener('submit', handleTransfer);
@@ -205,8 +205,7 @@ async function handleProfileUpload(event) {
         const response = await fetch('/upload_profile_picture', {
             method: 'POST',
             headers: {
-                'Authorization': 'Bearer ' + localStorage.getItem('token'),
-                'X-CSRF-Token': formData.get('csrf_token')
+                'X-CSRFToken': formData.get('csrf_token')
                     },
             body: formData
         });
@@ -264,17 +263,13 @@ async function handleProfileUrlImport() {
 
 // Fetch transactions
 // Vulnerability: No rate limiting on transaction fetches
-async function fetchTransactions() {
+async function fetchTransactions(csrfToken = null) {
 
-    function getCSRFToken() {
-        return document.querySelector('meta[name="csrf-token"]').value;
-    }
     try {
         const accountNumber = document.getElementById('account-number').textContent;
         const response = await fetch(`/transactions/${accountNumber}`, {
             headers: {
-                'X-CSRFToken': getCSRFToken()
-            }
+                'X-CSRFToken': csrfToken            }
         });
 
         const data = await response.json();
