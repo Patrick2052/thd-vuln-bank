@@ -94,14 +94,12 @@ def token_required(f):
             if current_user is None:
                 return jsonify({'error': 'Invalid token'}), 401
                 
-            # Vulnerability: No token expiration check
             return f(current_user, *args, **kwargs)
             
         except Exception as e:
-            # Vulnerability: Detailed error exposure
+            print(f"Token verification exception: {str(e)}")
             return jsonify({
                 'error': 'Invalid token', 
-                'details': str(e)
             }), 401
             
     return decorated
@@ -129,7 +127,6 @@ def authorization_header_required(f):
                     token = auth_header
             except IndexError:
                 token = None
-
         if not token:
             return jsonify({'error': 'Token is missing'}), 401
 
@@ -138,14 +135,11 @@ def authorization_header_required(f):
             if current_user is None:
                 return jsonify({'error': 'Invalid token'}), 401
 
-            # Vulnerability: No token expiration check
             return f(current_user, *args, **kwargs)
 
-        except Exception as e:
-            # Vulnerability: Detailed error exposure
+        except Exception:
             return jsonify({
                 'error': 'Invalid token', 
-                'details': str(e)
             }), 401
             
     return decorated
