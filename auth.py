@@ -1,4 +1,4 @@
-from flask import jsonify, request
+from flask import jsonify, request, current_app
 import jwt
 import datetime
 import sqlite3  
@@ -103,47 +103,6 @@ def token_required(f):
             }), 401
             
     return decorated
-
-def authorization_header_required(f):
-    """
-    Specific decorator for getting the auth token only from the authorization header
-
-    Implementation of token_required for api endpoints that limits token location
-    to header only to limit csrf exposure
-    """
-
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        token = None
-
-        # Try to get token from Authorization header
-        if 'Authorization' in request.headers:
-            auth_header = request.headers['Authorization']
-            try:
-                # Handle 'Bearer' token format
-                if 'Bearer' in auth_header:
-                    token = auth_header.split(' ')[1]
-                else:
-                    token = auth_header
-            except IndexError:
-                token = None
-        if not token:
-            return jsonify({'error': 'Token is missing'}), 401
-
-        try:
-            current_user = verify_token(token)
-            if current_user is None:
-                return jsonify({'error': 'Invalid token'}), 401
-
-            return f(current_user, *args, **kwargs)
-
-        except Exception:
-            return jsonify({
-                'error': 'Invalid token', 
-            }), 401
-            
-    return decorated
-
 
 
 # New API endpoints with JWT authentication

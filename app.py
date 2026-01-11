@@ -31,7 +31,7 @@ from werkzeug.utils import secure_filename
 import auth
 from ai_agent_deepseek import ai_agent
 from auth import (
-    authorization_header_required,
+    token_required,
     check_password_strength,
     generate_token,
     init_auth_routes,
@@ -51,6 +51,8 @@ app = Flask(__name__)
 CORS(app)
 # TODO implement full flask csrf protection
 csrf = CSRFProtect(app)
+
+app.extensions['csrf'] = csrf
 
 # Initialize database connection pool
 init_connection_pool()
@@ -225,7 +227,18 @@ def login():
             ), 500    # if not post request return this
 
     return render_template('login.html')
-    
+
+
+
+@app.route('/auth/status', methods=['GET'])
+@csrf.exempt
+@token_required
+def auth_status(current_user):
+    """return if the user is authenticated or not"""
+    return jsonify({
+        "authenticated": True,
+    })
+
 # ! FIX debug route removed
 # @app.route('/debug/users')
 # def debug_users():
@@ -1055,7 +1068,7 @@ def api_v1_reset_password():
 
 
 @app.route('/api/transactions', methods=['GET'])
-@authorization_header_required # FIX: use authorization header to prevent csrf
+@token_required # FIX: use authorization header to prevent csrf
 def api_transactions(current_user):
     """
     FIXES:
@@ -1137,7 +1150,7 @@ TODO  FIX VIRTUAL CARDS ENDPOINTS
 
 
 @app.route('/api/virtual-cards/create', methods=['POST'])
-@authorization_header_required
+@token_required
 def create_virtual_card(current_user):
     """
     FIXES:
@@ -1202,7 +1215,7 @@ def create_virtual_card(current_user):
         }), 500
 
 @app.route('/api/virtual-cards', methods=['GET'])
-@authorization_header_required
+@token_required
 def get_virtual_cards(current_user):
     """
     FIXES:
@@ -1242,7 +1255,7 @@ def get_virtual_cards(current_user):
         }), 500
 
 @app.route('/api/virtual-cards/<int:card_id>/toggle-freeze', methods=['POST'])
-@authorization_header_required
+@token_required
 def toggle_card_freeze(current_user, card_id):
     """
     FIXES:
@@ -1279,7 +1292,7 @@ def toggle_card_freeze(current_user, card_id):
         }), 500
 
 @app.route('/api/virtual-cards/<int:card_id>/transactions', methods=['GET'])
-@authorization_header_required
+@token_required
 def get_card_transactions(current_user, card_id):
     """
     FIXES:
@@ -1320,7 +1333,7 @@ def get_card_transactions(current_user, card_id):
         }), 500
 
 @app.route('/api/virtual-cards/<int:card_id>/update-limit', methods=['POST'])
-@authorization_header_required
+@token_required
 def update_card_limit(current_user, card_id):
     """
     FIXES:
@@ -1456,7 +1469,7 @@ def get_billers_by_category(category_id):
         }), 500
 
 @app.route('/api/bill-payments/create', methods=['POST'])
-@authorization_header_required
+@token_required
 def create_bill_payment(current_user):
     class BillPaymentFormModel(BaseModel):
         """
@@ -1601,7 +1614,7 @@ def create_bill_payment(current_user):
         }), 500
 
 @app.route('/api/bill-payments/history', methods=['GET'])
-@authorization_header_required
+@token_required
 def get_payment_history(current_user):
     try:
         user_id = current_user['user_id']
