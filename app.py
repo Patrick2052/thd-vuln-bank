@@ -2,9 +2,12 @@ import os
 import platform
 import random
 import string
+
+from werkzeug.datastructures import FileStorage
 from datetime import datetime, timedelta
 from typing import Literal
 from urllib.parse import urlparse
+from uuid import uuid4
 from utils import generate_card_number, generate_cvv
 from password import verify_password, hash_password
 import requests
@@ -216,6 +219,7 @@ def login():
             ), 401
 
         except Exception as e:
+            raise # TODO REMOVE
             return jsonify(
                 {"status": "error", "message": "Login failed"}
             ), 500    # if not post request return this
@@ -269,7 +273,7 @@ def dashboard(current_user):
                          is_admin=current_user.get('is_admin', False))
 
 @app.route('/check_balance/<account_number>')
-@token_required # TODO check the token implementation
+@token_required
 def check_balance(current_user, account_number:str):
     """
     FIXES:
@@ -459,49 +463,58 @@ def get_transaction_history(current_user, account_number: str):
 @app.route('/upload_profile_picture', methods=['POST'])
 @token_required
 def upload_profile_picture(current_user):
-    if 'profile_picture' not in request.files:
+    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+    MAX_FILE_SIZE_MB = 50
+    MAX_FILE_SIZE = MAX_FILE_SIZE_MB * 1024 * 1024  # 2MB
+
+    def allowed_file(filename):
+        return '.' in filename and \
+               filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+    def filesize_is_valid(file: FileStorage):
+        file.stream.seek(0, os.SEEK_END)
+        size = file.stream.tell()
+        file.stream.seek(0)
+        return size <= MAX_FILE_SIZE
+
+    file: FileStorage = request.files['profile_picture']
+
+    if 'profile_picture' not in request.files or file.filename == '':
         return jsonify({'error': 'No file provided'}), 400
-        
-    file = request.files['profile_picture']
-    
-    if file.filename == '':
-        return jsonify({'error': 'No file selected'}), 400
-        
+
+    if not allowed_file(file.filename):
+        return jsonify({'error': 'Invalid file type'}), 400
+
+    if not filesize_is_valid(file):
+        return jsonify({'error': f'File too large (max {MAX_FILE_SIZE_MB} MB)'}), 400 # exists but does not hinder testing dev
+
+    if file.mimetype not in ['image/png', 'image/jpeg', 'image/gif']:
+        return jsonify({'error': 'Invalid content type'}), 400
+
     try:
-        # Vulnerability: No file type validation
-        # Vulnerability: Using user-controlled filename
-        # Vulnerability: No file size check
-        # Vulnerability: No content-type validation
         filename = secure_filename(file.filename)
-        
-        # Add random prefix to prevent filename collisions
-        filename = f"{random.randint(1, 1000000)}_{filename}"
-        
-        # Vulnerability: Path traversal possible if filename contains ../
+        filename = f"{str(uuid4())}.{filename.split('.')[-1]}" # . in filename is ensured by allowed_fie
         file_path = os.path.join(UPLOAD_FOLDER, filename)
-        
         file.save(file_path)
-        
+
         # Update database with just the filename
         execute_query(
             "UPDATE users SET profile_picture = %s WHERE id = %s",
             (filename, current_user['user_id']),
             fetch=False
         )
-        
+
         return jsonify({
             'status': 'success',
             'message': 'Profile picture uploaded successfully',
-            'file_path': os.path.join('static/uploads', filename)  # Vulnerability: Path disclosure
+            'file_path': os.path.join('static/uploads', filename)
         })
-        
+
     except Exception as e:
-        # Vulnerability: Detailed error exposure
         print(f"Profile picture upload error: {str(e)}")
         return jsonify({
             'status': 'error',
-            'message': str(e),
-            'file_path': file_path  # Vulnerability: Information disclosure
+            'message': 'Failed to upload profile picture'
         }), 500
 
 # TODO exploit and fix
@@ -1040,57 +1053,6 @@ def reset_password():
             
     return render_template('reset_password.html')
 
-
-# ! TODO this route is not active in the app, it's just for documentation purposes
-# V1 API - Maintains all current vulnerabilities
-# @app.route('/api/v1/forgot-password', methods=['POST'])
-# def api_v1_forgot_password():
-#     try:
-#         data = request.get_json()
-#         username = data.get('username')
-        
-#         # Vulnerability: SQL Injection possible
-#         user = execute_query(
-#             f"SELECT id FROM users WHERE username='{username}'"
-#         )
-        
-#         if user:
-#             # Weak reset pin logic (CWE-330)
-#             # Using only 3 digits makes it easily guessable
-#             reset_pin = str(random.randint(100, 999))
-            
-#             # Store the reset PIN in database (in plaintext - CWE-319)
-#             execute_query(
-#                 "UPDATE users SET reset_pin = %s WHERE username = %s",
-#                 (reset_pin, username),
-#                 fetch=False
-#             )
-            
-#             # Vulnerability: Information disclosure
-#             return jsonify({
-#                 'status': 'success',
-#                 'message': 'Reset PIN has been sent to your email.',
-#                 'debug_info': {  # Vulnerability: Information disclosure
-#                     'timestamp': str(datetime.now()),
-#                     'username': username,
-#                     'pin_length': len(reset_pin),
-#                     'pin': reset_pin  # Intentionally exposing pin for learning
-#                 }
-#             })
-#         else:
-#             # Vulnerability: Username enumeration
-#             return jsonify({
-#                 'status': 'error',
-#                 'message': 'User not found'
-#             }), 404
-                
-#     except Exception as e:
-#         # Vulnerability: Detailed error exposure
-#         print(f"Forgot password error: {str(e)}")
-#         return jsonify({
-#             'status': 'error',
-#             'message': str(e)
-#         }), 500
 
 @app.route('/api/v2/forgot-password', methods=['POST'])
 def api_v2_forgot_password():
