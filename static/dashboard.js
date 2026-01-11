@@ -1,18 +1,17 @@
+function getCSRFToken() {
+    return document.querySelector('meta[name="csrf-token"]').value;
+}
+
+
 // Set current date
+
 document.addEventListener('DOMContentLoaded', function() {
     const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
     const today = new Date();
     document.getElementById('current-date').textContent = today.toLocaleDateString('en-US', options);
 });
 
-// Vulnerability: Token stored in localStorage
 document.addEventListener('DOMContentLoaded', function() {
-    const token = localStorage.getItem('jwt_token');
-    if (!token) {
-        window.location.href = '/login';
-        return;
-    }
-
     fetchTransactions();
 
     // Add event listeners
@@ -95,12 +94,13 @@ async function handleTransfer(event) {
     const formData = new FormData(event.target);
     const jsonData = {};
     formData.forEach((value, key) => jsonData[key] = value);
+    csrfToken = formData.get('csrf_token');
 
     try {
         const response = await fetch('/transfer', {
             method: 'POST',
             headers: {
-                'Authorization': 'Bearer ' + localStorage.getItem('jwt_token'),
+                'X-CSRFToken': csrfToken ? csrfToken : getCSRFToken(),
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify(jsonData)
@@ -135,11 +135,13 @@ async function handleLoanRequest(event) {
     const jsonData = {};
     formData.forEach((value, key) => jsonData[key] = value);
 
+    csrfToken = formData.get('csrf_token');
+
     try {
         const response = await fetch('/request_loan', {
             method: 'POST',
             headers: {
-                'Authorization': 'Bearer ' + localStorage.getItem('jwt_token'),
+                'X-CSRFToken': csrfToken,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify(jsonData)
@@ -203,8 +205,9 @@ async function handleProfileUpload(event) {
         const response = await fetch('/upload_profile_picture', {
             method: 'POST',
             headers: {
-                'Authorization': 'Bearer ' + localStorage.getItem('jwt_token')
-            },
+                'Authorization': 'Bearer ' + localStorage.getItem('token'),
+                'X-CSRF-Token': formData.get('csrf_token')
+                    },
             body: formData
         });
 
@@ -235,7 +238,8 @@ async function handleProfileUrlImport() {
         const response = await fetch('/upload_profile_picture_url', {
             method: 'POST',
             headers: {
-                'Authorization': 'Bearer ' + localStorage.getItem('jwt_token'),
+                'Authorization': 'Bearer ' + localStorage.getItem('token'),
+                'X-CSRF-Token': document.querySelector('input[name="csrf_token"]').value,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({ image_url: imageUrl })
@@ -261,11 +265,15 @@ async function handleProfileUrlImport() {
 // Fetch transactions
 // Vulnerability: No rate limiting on transaction fetches
 async function fetchTransactions() {
+
+    function getCSRFToken() {
+        return document.querySelector('meta[name="csrf-token"]').value;
+    }
     try {
         const accountNumber = document.getElementById('account-number').textContent;
         const response = await fetch(`/transactions/${accountNumber}`, {
             headers: {
-                'Authorization': 'Bearer ' + localStorage.getItem('jwt_token')
+                'X-CSRFToken': getCSRFToken()
             }
         });
 
@@ -313,7 +321,7 @@ async function fetchVirtualCards() {
     try {
         const response = await fetch('/api/virtual-cards', {
             headers: {
-                'Authorization': 'Bearer ' + localStorage.getItem('jwt_token')
+                'X-CSRFToken': getCSRFToken()
             }
         });
 
@@ -422,6 +430,7 @@ function hideCardDetailsModal() {
 async function handleCreateCard(event) {
     event.preventDefault();
     const formData = new FormData(event.target);
+    const csrfToken = formData.get('csrf_token');
     const jsonData = {};
     formData.forEach((value, key) => jsonData[key] = value);
 
@@ -429,7 +438,7 @@ async function handleCreateCard(event) {
         const response = await fetch('/api/virtual-cards/create', {
             method: 'POST',
             headers: {
-                'Authorization': 'Bearer ' + localStorage.getItem('jwt_token'),
+                'X-CSRFToken': csrfToken,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify(jsonData)
@@ -453,11 +462,14 @@ async function handleCreateCard(event) {
 }
 
 async function toggleCardFreeze(cardId) {
+    function getCSRFToken() {
+         return document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    }
     try {
         const response = await fetch(`/api/virtual-cards/${cardId}/toggle-freeze`, {
             method: 'POST',
             headers: {
-                'Authorization': 'Bearer ' + localStorage.getItem('jwt_token')
+                'X-CSRFToken': getCSRFToken()
             }
         });
 
@@ -478,7 +490,7 @@ async function showTransactionHistory(cardId) {
     try {
         const response = await fetch(`/api/virtual-cards/${cardId}/transactions`, {
             headers: {
-                'Authorization': 'Bearer ' + localStorage.getItem('jwt_token')
+                'X-CSRFToken': getCSRFToken()
             }
         });
 
@@ -530,6 +542,7 @@ async function showUpdateLimit(cardId) {
     content.innerHTML = `
         <h4>Update Card Limit</h4>
         <form id="updateCardForm" onsubmit="return handleCardUpdate(event, ${cardId})">
+            <input type="hidden" name="csrf_token" value="${document.querySelector('meta[name="csrf-token"]').getAttribute('content')}">
             <div class="form-group">
                 <label for="card_limit_update">Card Limit</label>
                 <input type="number" id="card_limit_update" name="card_limit" value="${card.limit}" step="0.01" required>
@@ -546,9 +559,13 @@ async function showUpdateLimit(cardId) {
 
 // Add handleCardUpdate function
 async function handleCardUpdate(event, cardId) {
+
+
     event.preventDefault();
     const formData = new FormData(event.target);
-    
+
+    csrfToken = formData.get('csrf_token');    
+
     // Only send card_limit from UI
     const jsonData = {
         card_limit: parseFloat(formData.get('card_limit'))
@@ -559,7 +576,7 @@ async function handleCardUpdate(event, cardId) {
         const response = await fetch(`/api/virtual-cards/${cardId}/update-limit`, {
             method: 'POST',
             headers: {
-                'Authorization': 'Bearer ' + localStorage.getItem('jwt_token'),
+                'X-CSRFToken': csrfToken ? csrfToken : getCSRFToken(),
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify(jsonData)
@@ -685,7 +702,7 @@ async function loadVirtualCardsForPayment() {
     try {
         const response = await fetch('/api/virtual-cards', {
             headers: {
-                'Authorization': 'Bearer ' + localStorage.getItem('jwt_token')
+                'X-CSRFToken': getCSRFToken()
             }
         });
 
@@ -727,7 +744,7 @@ async function handleBillPayment(event) {
         const response = await fetch('/api/bill-payments/create', {
             method: 'POST',
             headers: {
-                'Authorization': 'Bearer ' + localStorage.getItem('jwt_token'),
+                'X-CSRFToken': getCSRFToken(),
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify(jsonData)
@@ -764,7 +781,7 @@ async function loadPaymentHistory() {
     try {
         const response = await fetch('/api/bill-payments/history', {
             headers: {
-                'Authorization': 'Bearer ' + localStorage.getItem('jwt_token')
+                'X-CSRFToken': getCSRFToken()
             }
         });
 
@@ -803,8 +820,8 @@ async function loadPaymentHistory() {
     }
 }
 
-// Vulnerability: No server-side token invalidation
 function logout() {
+    fetch('/logout', { method: 'POST', headers: { 'X-CSRFToken': getCSRFToken() } });
     localStorage.removeItem('jwt_token');
     window.location.href = '/login';
 }
@@ -960,7 +977,6 @@ async function sendToAI(message) {
     try {
         // Get selected chat mode
         const selectedMode = document.querySelector('input[name="chatMode"]:checked').value;
-        const token = localStorage.getItem('jwt_token');
         
         // Determine endpoint and headers based on mode
         let endpoint, headers;
@@ -969,7 +985,7 @@ async function sendToAI(message) {
             endpoint = '/api/ai/chat';
             headers = {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
+                'X-CSRFToken': getCSRFToken(),
             };
         } else {
             endpoint = '/api/ai/chat/anonymous';
@@ -1093,7 +1109,6 @@ function escapeHtml(text) {
 // Function to check current rate limit status
 async function checkRateLimitStatus() {
     try {
-        const token = localStorage.getItem('jwt_token');
         const headers = {};
         
         // Include auth header if available for more detailed status
