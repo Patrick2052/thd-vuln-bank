@@ -38,20 +38,16 @@ from auth import (
 from database import execute_query, execute_transaction, init_connection_pool, init_db
 from validators import RegisterFormModel, TransferFormModel
 from rate_limiter import ai_rate_limit, get_rate_limit_status
+from config import settings
 
 # Load environment variables
 load_dotenv()
-
-SECRET_KEY = os.getenv('SECRET_KEY', None)
-if SECRET_KEY is None:
-    raise Exception("SECRET_KEY environment variable not set")
 
 # Initialize Flask app
 app = Flask(__name__)
 CORS(app)
 # TODO implement full flask csrf protection
 csrf = CSRFProtect(app)
-
 
 # Initialize database connection pool
 init_connection_pool()
@@ -71,7 +67,7 @@ swaggerui_blueprint = get_swaggerui_blueprint(
 app.register_blueprint(swaggerui_blueprint, url_prefix=SWAGGER_URL)
 
 # FIXED Hardcoded secret key (CWE-798)
-app.secret_key = SECRET_KEY
+app.secret_key = settings.SECRET_KEY
 
 UPLOAD_FOLDER = 'static/uploads'
 if not os.path.exists(UPLOAD_FOLDER):
@@ -220,7 +216,6 @@ def login():
             ), 401
 
         except Exception as e:
-            raise
             return jsonify(
                 {"status": "error", "message": "Login failed"}
             ), 500    # if not post request return this
