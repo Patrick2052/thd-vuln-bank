@@ -3,14 +3,12 @@ import jwt
 import datetime
 import sqlite3  
 from functools import wraps
+from config import settings
 
 # Vulnerable JWT implementation with common security issues
 
 # Weak secret key (CWE-326)
-JWT_SECRET = "secret123"
-
-# Vulnerable algorithm selection - allows 'none' algorithm
-ALGORITHMS = ['HS256', 'none']
+ALGORITHMS = ['HS256']
 
 def check_password_strength(password):
     """
@@ -39,39 +37,30 @@ def generate_token(user_id, username, is_admin=False):
     Generate a JWT token with weak implementation
     Vulnerability: No token expiration (CWE-613)
     """
+    now = int(datetime.datetime.now().timestamp())
     payload = {
         'user_id': user_id,
         'username': username,
         'is_admin': is_admin,
-        # Missing 'exp' claim - tokens never expire
-        'iat': datetime.datetime.utcnow()
+        'exp': now + 24 * 3600, 
+        'iat': now
     }
     
     # Vulnerability: Using a weak secret key
-    token = jwt.encode(payload, JWT_SECRET, algorithm='HS256')
+    token = jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm='HS256')
     return token
 
 def verify_token(token):
     """
-    Verify JWT token with multiple vulnerabilities
-    - Accepts 'none' algorithm (CWE-347)
-    - No signature verification in some cases
-    - No expiration check
+    Verify JWT token and check expiration.
     """
     try:
-        # Vulnerability: Accepts any algorithm, including 'none'
-        payload = jwt.decode(token, JWT_SECRET, algorithms=ALGORITHMS)
+        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=ALGORITHMS)
         return payload
-    except jwt.exceptions.InvalidSignatureError:
-        # Vulnerability: Still accepts tokens in some error cases
-        try:
-            # Second try without verification
-            payload = jwt.decode(token, options={'verify_signature': False})
-            return payload
-        except:
-            return None
-    except Exception as e:
-        # Vulnerability: Detailed error exposure in logs
+    except jwt.ExpiredSignatureError:
+        print("Token verification error: Token has expired")
+        return None
+    except jwt.InvalidTokenError as e:
         print(f"Token verification error: {str(e)}")
         return None
 
