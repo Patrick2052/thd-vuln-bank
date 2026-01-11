@@ -701,7 +701,7 @@ def request_loan(current_user):
 
     try:
         data = LoanRequestBody(**request.get_json())
-        amount = float(data.get('amount'))
+        amount = float(data.amount)
         
         execute_query(
             "INSERT INTO loans (user_id, amount) VALUES (%s, %s)",
@@ -1284,8 +1284,8 @@ def toggle_card_freeze(current_user, card_id):
     """
 
     try:
-        # Vulnerability: No CSRF protection
         # Vulnerability: BOLA - no verification if card belongs to user
+        # TODO sql injection
         query = f"""
             UPDATE virtual_cards 
             SET is_frozen = NOT is_frozen 
@@ -1307,9 +1307,9 @@ def toggle_card_freeze(current_user, card_id):
         }), 404
         
     except Exception as e:
+        print(f"Toggle card freeze error: {str(e)}")
         return jsonify({
             'status': 'error',
-            'message': str(e)
         }), 500
 
 @app.route('/api/virtual-cards/<int:card_id>/transactions', methods=['GET'])
