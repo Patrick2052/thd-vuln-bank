@@ -1159,15 +1159,22 @@ def create_virtual_card(current_user):
         card_type = data.get('card_type', 'standard')
         
         # Create virtual card
-        query = f"""
-            INSERT INTO virtual_cards 
-            (user_id, card_number, cvv, expiry_date, card_limit, card_type)
-            VALUES 
-            ({current_user['user_id']}, '{card_number}', '{cvv}', '{expiry_date}', {card_limit}, '{card_type}')
-            RETURNING id
-        """
+        query = (
+            "INSERT INTO virtual_cards "
+            "(user_id, card_number, cvv, expiry_date, card_limit, card_type) "
+            "VALUES (%s, %s, %s, %s, %s, %s) "
+            "RETURNING id"
+        )
+        values = (
+            current_user['user_id'],
+            card_number,
+            cvv,
+            expiry_date,
+            card_limit,
+            card_type,
+        )
         
-        result = execute_query(query)
+        result = execute_query(query, values)
         
         if result:
             # Vulnerability: Sensitive data exposure
@@ -1189,10 +1196,9 @@ def create_virtual_card(current_user):
         }), 500
         
     except Exception as e:
-        # Vulnerability: Detailed error exposure
+        print(f"Create virtual card error: {str(e)}")
         return jsonify({
             'status': 'error',
-            'message': str(e)
         }), 500
 
 @app.route('/api/virtual-cards', methods=['GET'])
