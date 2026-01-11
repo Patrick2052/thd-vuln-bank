@@ -1251,13 +1251,11 @@ def get_virtual_cards(current_user):
         
         cards = execute_query(query)
         
-        # Vulnerability: Sensitive data exposure
         return jsonify({
             'status': 'success',
             'cards': [{
-                'id': card[0],
                 'card_number': card[2],
-                'cvv': card[3],
+                'cvv': "***",
                 'expiry_date': card[4],
                 'limit': float(card[5]),
                 'balance': float(card[6]),
@@ -1285,15 +1283,14 @@ def toggle_card_freeze(current_user, card_id):
 
     try:
         # Vulnerability: BOLA - no verification if card belongs to user
-        # TODO sql injection
-        query = f"""
+        query = """
             UPDATE virtual_cards 
             SET is_frozen = NOT is_frozen 
-            WHERE id = {card_id}
+            WHERE id = %s
             RETURNING is_frozen
         """
         
-        result = execute_query(query)
+        result = execute_query(query, (card_id,))
         
         if result:
             return jsonify({
