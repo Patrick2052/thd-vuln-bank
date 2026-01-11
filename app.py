@@ -1180,14 +1180,14 @@ def create_virtual_card(current_user):
             # Vulnerability: Sensitive data exposure
             return jsonify({
                 'status': 'success',
-                'message': 'Virtual card created successfully',
-                'card_details': {
-                    'card_number': card_number,
-                    'cvv': cvv,
-                    'expiry_date': expiry_date,
-                    'limit': card_limit,
-                    'type': card_type
-                }
+                'message': 'Virtual card created successfully'
+                # 'card_details': {
+                #     'card_number': card_number,
+                #     'cvv': cvv,
+                #     'expiry_date': expiry_date,
+                #     'limit': card_limit,
+                #     'type': card_type
+                # }
             })
             
         return jsonify({
