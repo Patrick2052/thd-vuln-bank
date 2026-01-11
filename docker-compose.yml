@@ -15,13 +15,13 @@ services:
       - DB_HOST=db 
       - DB_PORT=5432
     depends_on:
-      - db
+      - db-sec
     volumes:
       - ./static/uploads:/app/static/uploads
     networks:
       - vuln_network
 
-  db:
+  db-sec:
     image: postgres:13
     environment:
       - POSTGRES_DB=vulnerable_bank
@@ -30,12 +30,12 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - vuln_bank_postgres_data:/var/lib/postgresql/data
     networks:
       - vuln_network
 
 volumes:
-  postgres_data:
+  vuln_bank_postgres_data:
 
 networks:
   vuln_network:
