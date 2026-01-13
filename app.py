@@ -1056,8 +1056,6 @@ def api_v1_reset_password():
                 'message': 'Password does not meet strength requirements',
             }), 400
 
-        # TODO Vulnerability: No rate limiting on PIN attempts
-        # TODO Vulnerability: Timing attack possible in PIN verification
         user = execute_query(
             "SELECT id FROM users WHERE username = %s AND reset_pin = %s",
             (username, reset_pin)
@@ -1101,7 +1099,7 @@ def api_transactions(current_user):
         @field_validator('account_number', mode='after')
         @classmethod
         def account_number_must_be_digits(cls, v):
-            if not v.isdigit() or v == 'ADMIN001':
+            if not v.isdigit():
                 raise ValueError('Account number must be digits only')
             return v
     try:

@@ -164,7 +164,7 @@ def init_db():
                     INSERT INTO users (username, password, account_number, balance, is_admin) 
                     VALUES (%s, %s, %s, %s, %s)
                     """,
-                    ('admin', hash_password('admin123'), 'ADMIN001', 1000000.0, True)
+                    ('admin', hash_password('admin123'), '000000001', 1000000.0, True)
                 )
             
             # Create bill categories table
