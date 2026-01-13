@@ -961,8 +961,6 @@ def reset_password():
             )
             
             if user and check_password_strength(new_password):
-                # Vulnerability: No password complexity requirements
-                # Vulnerability: No password history check
                 execute_query(
                     "UPDATE users SET password = %s, reset_pin = NULL WHERE username = %s",
                     (new_password, username),

@@ -1,6 +1,6 @@
 from pydantic import BaseModel, field_validator
 import bleach
-
+from auth import check_password_strength
 
 class RegisterFormModel(BaseModel):
     """
@@ -20,12 +20,11 @@ class RegisterFormModel(BaseModel):
         print(f"Sanitized username: {clean_username}")
         return clean_username
 
-    @field_validator("password")
+    @field_validator("password", mode="after")
     @classmethod
     def password_strength(cls, v):
-        # TODO : Implement more robust password strength checks
-        if len(v) < 8:
-            raise ValueError("Password must be at least 8 characters long")
+        if not check_password_strength(v):
+            raise ValueError("Password does not meet strength requirements")
         return v
     
 
