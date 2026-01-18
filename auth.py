@@ -9,6 +9,7 @@ from password import verify_password
 from pydantic import BaseModel
 from config import settings
 
+# TODO what is the best algorithm?
 ALGORITHMS = ['HS256']
 
 def check_password_strength(password):
@@ -33,18 +34,20 @@ def check_password_strength(password):
 
 
 
-def generate_token(user_id, username, is_admin=False):
+def generate_token(user_id, username, is_admin=False, expiration_hours=24):
     """
     Generate a JWT token with weak implementation
     Vulnerability: No token expiration (CWE-613)
     """
     now = int(datetime.now().timestamp())
     payload = {
+        'jti': f"{user_id}-{now}",
         'user_id': user_id,
         'username': username,
         'is_admin': is_admin,
-        'exp': now + 24 * 3600, 
-        'iat': now
+        'exp': now + expiration_hours * 3600, 
+        'iat': now,
+        'nbf': now
     }
     
     token = jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm='HS256')
@@ -55,14 +58,47 @@ def verify_token(token):
     Verify JWT token and check expiration.
     """
     try:
-        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=ALGORITHMS)
+        payload = jwt.decode(
+            token,
+            settings.JWT_SECRET_KEY,
+            algorithms=ALGORITHMS,
+            options={
+                'require': ['exp', 'iat', 'nbf', 'jti', 'user_id', 'username'],
+                'verify_exp': True,
+                'verify_nbf': True,
+                'verify_iat': True
+            },
+        )
+
+        if is_token_revoked(payload.get('jti')):
+            print("Token verification error: Token has been revoked")
+            return None
         return payload
     except jwt.ExpiredSignatureError:
         print("Token verification error: Token has expired")
         return None
+    except jwt.InvalidIssuerError:
+        print("Token verification error: Invalid issuer")
+        return None
+    except jwt.InvalidAudienceError:
+        print("Token verification error: Invalid audience")
+        return None
+    except jwt.ImmatureSignatureError:
+        print("Token verification error: Token not yet valid (nbf)")
+        return None
     except jwt.InvalidTokenError as e:
         print(f"Token verification error: {str(e)}")
         return None
+
+def is_token_revoked(jti):
+    """
+    Check if the token with given jti (JWT ID) is revoked.
+
+    Out of scope für unser Beispiel Projekt. In einer Echten App würde hier eine
+    Datenbankabfrage erfolgen die eine Blacklist prüft.
+    """
+    return False
+
 
 
 def token_required(f):
