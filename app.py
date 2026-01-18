@@ -139,7 +139,7 @@ def register():
             print(f"Registration -- Validation error: {ve.errors()}")
             return jsonify({
                 'status': 'error',
-                'message': 'Invalid username or password',
+                'message': 'Password strength requirements not met or invalid input (minimum 8 characters, at least one uppercase letter, one lowercase letter, one digit, and one special character)',
             }), 400
 
         except Exception as e:

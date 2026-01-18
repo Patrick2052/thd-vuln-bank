@@ -49,7 +49,7 @@
                     
                     const data = await response.json();
                     
-                    if (data.status === 'success' && data.token) {
+                    if (data.status === 'success') {
                         window.location.href = '/dashboard';
                     } else {
                         document.getElementById('message').textContent = data.message || 'Login failed';
