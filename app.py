@@ -1262,15 +1262,15 @@ def toggle_card_freeze(current_user, card_id):
     """
 
     try:
-        # Vulnerability: BOLA - no verification if card belongs to user
         query = """
             UPDATE virtual_cards 
             SET is_frozen = NOT is_frozen 
             WHERE id = %s
+            AND user_id = %s
             RETURNING is_frozen
         """
         
-        result = execute_query(query, (card_id,))
+        result = execute_query(query, (card_id, current_user['user_id']))
         
         if result:
             return jsonify({
