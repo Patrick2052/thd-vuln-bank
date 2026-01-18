@@ -49,9 +49,7 @@ load_dotenv()
 # Initialize Flask app
 app = Flask(__name__)
 CORS(app)
-# TODO implement full flask csrf protection
 csrf = CSRFProtect(app)
-
 app.extensions['csrf'] = csrf
 
 # Initialize database connection pool
@@ -244,6 +242,7 @@ def logout(current_user):
         )
     )
     # Clear the token cookie
+
     response.set_cookie("token", "", expires=0, httponly=True, secure=True, samesite="strict")
     return response
 
@@ -258,19 +257,6 @@ def auth_status(current_user):
         "authenticated": True,
     })
 
-# ! FIX debug route removed
-# @app.route('/debug/users')
-# def debug_users():
-#     users = execute_query("SELECT id, username, password, account_number, is_admin FROM users")
-#     return jsonify({'users': [
-#         {
-#             'id': u[0],
-#             'username': u[1],
-#             'password': u[2],
-#             'account_number': u[3],
-#             'is_admin': u[4]
-#         } for u in users
-#     ]})
 
 @app.route('/dashboard')
 @token_required
@@ -491,7 +477,6 @@ def get_transaction_history(current_user, account_number: str):
             'message': 'unexpected server error',
         }), 500
 
-# TODO exploit and fix
 @app.route('/upload_profile_picture', methods=['POST'])
 @token_required
 def upload_profile_picture(current_user):
@@ -1157,7 +1142,7 @@ def api_transactions(current_user):
 ############################################################################################################################################
 ############################################################################################################################################
 
-TODO  FIX VIRTUAL CARDS ENDPOINTS
+VIRTUAL CARDS ENDPOINTS
 
 ############################################################################################################################################
 ############################################################################################################################################

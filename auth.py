@@ -102,6 +102,10 @@ def is_token_revoked(jti):
 
 
 def token_required(f):
+    """
+    Decorator that checks if a valid token is present in the request.
+    Either in the Authorization header or in cookies.
+    """
     @wraps(f)
     def decorated(*args, **kwargs):
         token = None
@@ -118,10 +122,9 @@ def token_required(f):
             except IndexError:
                 token = None
                 
-        # Also check cookies (vulnerable by design)
         if not token and 'token' in request.cookies:
             token = request.cookies['token']
-            
+
         if not token:
             return jsonify({'error': 'Token is missing'}), 401
 
