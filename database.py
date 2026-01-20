@@ -97,7 +97,7 @@ def init_db():
                     balance DECIMAL(15, 2) DEFAULT 1000.0,
                     is_admin BOOLEAN DEFAULT FALSE,
                     profile_picture TEXT,
-                    reset_pin TEXT  -- Vulnerability: Reset PINs stored in plaintext # TODO document
+                    reset_pin TEXT  -- Vulnerability: Reset PINs stored in plaintext
                 )
             ''')
             

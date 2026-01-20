@@ -178,7 +178,6 @@ def login():
                 user = user[0] 
                 password_hash = user[2]
                 if not verify_password(password, bytes(password_hash) ):
-                    # TODO? Timing attack because of the different code paths?
                     return jsonify(
                         {
                             "status": "error",
@@ -217,7 +216,6 @@ def login():
             ), 401
 
         except Exception as e:
-            raise # TODO REMOVE
             return jsonify(
                 {"status": "error", "message": "Login failed"}
             ), 500    # if not post request return this
@@ -590,7 +588,6 @@ def upload_profile_picture_url(current_user):
             'message': str(e)
         }), 500
 
-# TODO move all of this section to a seperate file
 """
 ####################################################
 ####################################################
@@ -598,11 +595,6 @@ def upload_profile_picture_url(current_user):
 
 
 INTERNAL ONLY ENDPOINTS FOR SSRF DEMO
-
-also
-
-LATEST ENDPOINTS FOR CLOUD METADATA MOCK
-
 
 ####################################################
 ####################################################
@@ -793,7 +785,8 @@ def approve_loan(current_user, loan_id):
         }), 500
 
 
-# TODO: FIX
+# OUT OF SCOPE FOR THE PROJECT
+# Documentaiton about possible fixes in the Paper
 # Delete account endpoint
 @app.route('/admin/delete_account/<int:user_id>', methods=['POST'])
 @token_required
@@ -802,7 +795,6 @@ def delete_account(current_user, user_id):
         return jsonify({'error': 'Access Denied'}), 403
     
     try:
-        # TODO document in paper
         # ! This is out of scope for the project
         # Vulnerability: No user confirmation required
         # Vulnerability: No audit logging
@@ -828,7 +820,6 @@ def delete_account(current_user, user_id):
         }), 500
 
 
-# TODO: fix
 # Create admin endpoint
 @app.route('/admin/create_admin', methods=['POST'])
 @token_required
@@ -865,7 +856,6 @@ def create_admin(current_user):
         }), 500
 
 
-# TODO: username enumeration in paper??
 # Forgot password endpoint
 @app.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
@@ -873,7 +863,7 @@ def forgot_password():
     FIXES:
     - Input validation for username
     - Sql Injection prevention with parameterized queries
-    - INCREASED RESET PIN COMPLEXITY # TODO check if include in paper
+    - INCREASED RESET PIN COMPLEXITY
     """
     class ForgotPasswordRequestBody(BaseModel):
         username: str
@@ -892,7 +882,6 @@ def forgot_password():
                 # fix: increased reset pin complexity (CWE-330)
                 reset_pin = str(random.randint(100000, 999999))
 
-                # TODO either fix or put in paper as outlook    
                 # Store the reset PIN in database (in plaintext - CWE-319)
                 execute_query(
                     "UPDATE users SET reset_pin = %s WHERE username = %s",
@@ -918,7 +907,6 @@ def forgot_password():
             
     return render_template('forgot_password.html')
 
-# TODO add rate limiting or put in paper as outlook
 @app.route('/reset-password', methods=['GET', 'POST'])
 def reset_password():
     """
@@ -996,7 +984,6 @@ def api_v2_forgot_password():
         if user:
             reset_pin = str(random.randint(100000, 999999))
             
-            # TODO or put in outlook: Store the reset PIN in database (in plaintext - CWE-319)
             execute_query(
                 "UPDATE users SET reset_pin = %s WHERE username = %s",
                 (reset_pin, username),
@@ -1041,13 +1028,14 @@ def api_v1_reset_password():
                 'message': 'Password does not meet strength requirements',
             }), 400
 
+        new_password = hash_password(new_password)
+
         user = execute_query(
             "SELECT id FROM users WHERE username = %s AND reset_pin = %s",
             (username, reset_pin)
         )
         
         if user:
-            # TODO in outlook: Vulnerability: No password history check
             execute_query(
                 "UPDATE users SET password = %s, reset_pin = NULL WHERE username = %s",
                 (new_password, username),
@@ -1413,11 +1401,11 @@ BILLS
 ############################################################################################################################################
 """
 
-# TODO fix
+# out of scope für unsere arbeitout of scope für unsere arbeit
 @app.route('/api/bill-categories', methods=['GET'])
-def get_bill_categories():
+@token_required
+def get_bill_categories(current_user):
     try:
-        # Vulnerability: No authentication required
         query = "SELECT * FROM bill_categories WHERE is_active = TRUE"
         categories = execute_query(query)
         
@@ -1430,30 +1418,26 @@ def get_bill_categories():
             } for cat in categories]
         })
     except Exception as e:
+        print(f"Get bill categories error: {str(e)}")
         return jsonify({
             'status': 'error',
-            'message': str(e)  # Vulnerability: Detailed error exposure
         }), 500
 
-# TODO fix
 @app.route('/api/billers/by-category/<int:category_id>', methods=['GET'])
 def get_billers_by_category(category_id):
     try:
-        # Vulnerability: SQL injection possible
-        query = f"""
+        query = """
             SELECT * FROM billers 
-            WHERE category_id = {category_id} 
+            WHERE category_id = %s 
             AND is_active = TRUE
         """
-        billers = execute_query(query)
+        billers = execute_query(query, (category_id, ))
         
         # Vulnerability: Information disclosure
         return jsonify({
             'status': 'success',
             'billers': [{
-                'id': b[0],
                 'name': b[2],
-                'account_number': b[3],  # Vulnerability: Exposing account numbers
                 'description': b[4],
                 'minimum_amount': float(b[5]),
                 'maximum_amount': float(b[6]) if b[6] else None
@@ -1463,7 +1447,6 @@ def get_billers_by_category(category_id):
         print(f"Get billers error: {str(e)}")
         return jsonify({
             'status': 'error',
-            'message': str(e)
         }), 500
 
 @app.route('/api/bill-payments/create', methods=['POST'])

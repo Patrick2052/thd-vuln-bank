@@ -203,7 +203,6 @@ class AIAgent:
         """
         Detect prompt injection attempts to force database access
 
-        TODO: document this in the paper?
         In a real system this would need to be much more robust and advanced
         for example using ML-based detection or more complex heuristics
         """
@@ -230,7 +229,6 @@ class AIAgent:
             - Does not expose all database information anymore
             - Only provides information about the authenticated user
 
-        TODO outlook: 
         -  This should be way more complex to only provide relevant information based on the user query
             For example if the user asks about transactions only provide his transactions
             This would require a more advanced NLP-based classification of user queries
